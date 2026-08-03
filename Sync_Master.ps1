@@ -199,36 +199,6 @@ $null = Register-EngineEvent -SourceIdentifier ([System.Management.Automation.Ps
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Código Corrigido:
 
 #endregion
@@ -1395,10 +1365,6 @@ switch ($Acao.ToUpper()) {
         exit 1
     }
 }
-
-
-
-
 
 
 
