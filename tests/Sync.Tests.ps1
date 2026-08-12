@@ -268,9 +268,13 @@ Describe 'Test-OrigemEhPerfil' {
     It 'C:\Users (raiz de perfis) => perfil' {
         Test-OrigemEhPerfil -Path (Join-Path $env:SystemDrive 'Users') | Should -BeTrue
     }
+    It 'subpasta comum dentro do perfil sem hive => NAO perfil' {
+        $d = Join-Path $TestDrive 'Projeto'
+        New-Item -ItemType Directory -Path $d -Force | Out-Null
+        Test-OrigemEhPerfil -Path $d | Should -BeFalse
+    }
     It 'pasta comum sem hive (fora de C:\Users) => NAO perfil' {
-        # NAO usar TEMP: em geral fica sob C:\Users\...\AppData\Local\Temp (seria perfil).
-        # Usa a arvore do repo (fora de C:\Users) p/ isolar so o ramo do hive.
+        # Usa a arvore do repo para cobrir uma pasta comum fora de C:\Users.
         $d = Join-Path $root ("comum_" + [guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $d -Force | Out-Null
         try { Test-OrigemEhPerfil -Path $d | Should -BeFalse }

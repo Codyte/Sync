@@ -16,13 +16,13 @@
 #   L524   Format-RobocopyResumo
 #   L575   Get-ExclusoesPerfil
 #   L598   Test-OrigemEhPerfil
-#   L617   Measure-ArvoreRapido
-#   L639   Test-ParOrigemDestino
-#   L677   Show-RobocopyResultado
-#   L703   Start-RobocopyUnilateralSeguro
-#   L769   Start-RobocopyEspelho
-#   L831   Iniciar-SincronizacaoV2
-#   L836   Agendar-TarefaSincronizacao
+#   L615   Measure-ArvoreRapido
+#   L637   Test-ParOrigemDestino
+#   L675   Show-RobocopyResultado
+#   L701   Start-RobocopyUnilateralSeguro
+#   L767   Start-RobocopyEspelho
+#   L829   Iniciar-SincronizacaoV2
+#   L834   Agendar-TarefaSincronizacao
 # ======================= END NAV INDEX =======================
 
 <#
@@ -605,12 +605,10 @@ function Test-OrigemEhPerfil {
     [CmdletBinding()]
     [OutputType([bool])]
     param([Parameter(Mandatory=$true)][string]$Path)
-    $sep = [IO.Path]::DirectorySeparatorChar
     $p   = $Path.TrimEnd('\','/')
     $usersRoot = (Join-Path $env:SystemDrive 'Users').TrimEnd('\')
-    if ($p -ieq $usersRoot) { return $true }                                               # C:\Users
-    if ($p.StartsWith($usersRoot + $sep, [StringComparison]::OrdinalIgnoreCase)) { return $true }  # C:\Users\<...>
-    if (Test-Path -LiteralPath (Join-Path $Path 'NTUSER.DAT')) { return $true }            # qualquer pasta com hive
+    if ($p -ieq $usersRoot) { return $true }                                    # C:\Users inteiro
+    if (Test-Path -LiteralPath (Join-Path $Path 'NTUSER.DAT') -PathType Leaf) { return $true } # raiz real de perfil
     return $false
 }
 
