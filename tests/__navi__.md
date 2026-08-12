@@ -10,5 +10,5 @@
 - **ModuleLoading.Tests.ps1** (27 ln)
 - **Otimizacao.Tests.ps1** (318 ln)
 - **PowerShellUpdate.Tests.ps1** (127 ln)
-- **Rede.Tests.ps1** (53 ln)
+- **Rede.Tests.ps1** (64 ln)
 - **Sync.Tests.ps1** (364 ln)

@@ -3,18 +3,18 @@
 #   L26    Menu-DiagnosticoRede
 #   L59    Test-TcpPort
 #   L79    Testar-PortaTCP
-#   L91    Ping-Sweep
-#   L117   ConvertFrom-PortSpec
-#   L136   Scan-PortasTCP
-#   L155   Scan-ARP
-#   L166   Descobrir-Hostnames
-#   L195   Whois-Lookup
-#   L205   Scan-Servicos
-#   L218   Mostrar-Netstat
-#   L223   Instalar-e-Testar-Speedtest
-#   L226   Run-Ookla
-#   L282   Menu-Rede
-#   L306   Configurar-TcpAutoTuning
+#   L94    Ping-Sweep
+#   L120   ConvertFrom-PortSpec
+#   L141   Scan-PortasTCP
+#   L160   Scan-ARP
+#   L171   Descobrir-Hostnames
+#   L200   Whois-Lookup
+#   L210   Scan-Servicos
+#   L223   Mostrar-Netstat
+#   L228   Instalar-e-Testar-Speedtest
+#   L231   Run-Ookla
+#   L287   Menu-Rede
+#   L311   Configurar-TcpAutoTuning
 # ======================= END NAV INDEX =======================
 
 <#
@@ -61,7 +61,7 @@ function Test-TcpPort {
     # O .Connect() sincrono trava ~20s em portas filtradas; isto retorna em $TimeoutMs.
     param(
         [Parameter(Mandatory=$true)][string]$ComputerName,
-        [Parameter(Mandatory=$true)][int]$Port,
+        [Parameter(Mandatory=$true)][ValidateRange(1,65535)][int]$Port,
         [int]$TimeoutMs = 600
     )
     $tcp = New-Object System.Net.Sockets.TcpClient
@@ -79,8 +79,11 @@ function Test-TcpPort {
 function Testar-PortaTCP {
     $hostIP = Read-Host "Digite o host/IP para testar"
     $porta  = Read-Host "Digite a porta TCP para testar"
-    if ($porta -notmatch '^\d+$') { Write-Warning "Porta inválida."; Pause-Script; return }
-    if (Test-TcpPort -ComputerName $hostIP -Port ([int]$porta)) {
+    [int]$portNumber = 0
+    if (-not [int]::TryParse($porta, [ref]$portNumber) -or $portNumber -lt 1 -or $portNumber -gt 65535) {
+        Write-Warning "Porta inválida."; Pause-Script; return
+    }
+    if (Test-TcpPort -ComputerName $hostIP -Port $portNumber) {
         Write-Host "Porta $porta ABERTA em $hostIP" -ForegroundColor Green
     } else {
         Write-Warning "Porta $porta FECHADA ou inacessível em $hostIP"
@@ -122,12 +125,14 @@ function ConvertFrom-PortSpec {
         $faixa = $faixa.Trim()
         if (-not $faixa) { continue }
         if ($faixa -match '^(\d+)-(\d+)$') {
-            $start = [int]$Matches[1]; $end = [int]$Matches[2]
-            if ($start -le $end) {
-                for ($p = $start; $p -le $end; $p++) { if ($p -ge 1 -and $p -le 65535) { [void]$portas.Add($p) } }
+            [int]$start = 0; [int]$end = 0
+            if ([int]::TryParse($Matches[1], [ref]$start) -and [int]::TryParse($Matches[2], [ref]$end) -and $start -le $end) {
+                $first = [math]::Max(1, $start); $last = [math]::Min(65535, $end)
+                for ($p = $first; $p -le $last; $p++) { [void]$portas.Add($p) }
             }
         } elseif ($faixa -match '^\d+$') {
-            $p = [int]$faixa; if ($p -ge 1 -and $p -le 65535) { [void]$portas.Add($p) }
+            [int]$p = 0
+            if ([int]::TryParse($faixa, [ref]$p) -and $p -ge 1 -and $p -le 65535) { [void]$portas.Add($p) }
         }
     }
     return @($portas | Sort-Object -Unique)

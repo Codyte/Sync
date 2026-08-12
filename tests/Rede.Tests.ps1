@@ -39,6 +39,17 @@ Describe 'ConvertFrom-PortSpec' {
     It 'string vazia -> nenhuma porta' {
         (ConvertFrom-PortSpec -Spec '').Count | Should -Be 0
     }
+    It 'ignora numeros maiores que Int32 sem lancar' {
+        { $script:PortasGrandes = ConvertFrom-PortSpec -Spec '999999999999,1-999999999999,443' } | Should -Not -Throw
+        $script:PortasGrandes -join ',' | Should -Be '443'
+    }
+}
+
+Describe 'Test-TcpPort valida limites antes de abrir socket' {
+    It 'rejeita porta fora de [1..65535]' {
+        { Test-TcpPort -ComputerName 'localhost' -Port 0 } | Should -Throw
+        { Test-TcpPort -ComputerName 'localhost' -Port 65536 } | Should -Throw
+    }
 }
 
 Describe 'Instalar-e-Testar-Speedtest (cadeia de confianca)' {
