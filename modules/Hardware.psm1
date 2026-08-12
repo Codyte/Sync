@@ -40,8 +40,8 @@ function Get-DiscosInfo {
 
 function Monitorar-Recursos {
     param(
-        [int]$IntervaloMs = 250,        # ~4x/s e' excesso; 250-500ms baixa CPU do proprio monitor
-        [int]$CiclosDisco = 20          # atualiza os discos a cada N ciclos (para não pesar)
+        [ValidateRange(50,2147483647)][int]$IntervaloMs = 250, # 250-500ms baixa CPU do proprio monitor
+        [ValidateRange(1,2147483647)][int]$CiclosDisco = 20    # atualiza os discos a cada N ciclos
     )
 
     $ciclo = 0

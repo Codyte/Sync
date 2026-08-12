@@ -4,7 +4,7 @@
 
 - **Backup.Tests.ps1** (62 ln)
 - **Bootstrap.Tests.ps1** (104 ln)
-- **Hardware.Tests.ps1** (44 ln)
+- **Hardware.Tests.ps1** (57 ln)
 - **Manifest.Tests.ps1** (46 ln)
 - **Menu.Tests.ps1** (66 ln)
 - **ModuleLoading.Tests.ps1** (27 ln)

@@ -42,3 +42,16 @@ Describe 'Merge-DiscoFisico' {
         (Merge-DiscoFisico -Base @() -PhysicalDisks $script:Pd).Count | Should -Be 0
     }
 }
+
+Describe 'Monitorar-Recursos valida parametros antes do loop' {
+    It 'rejeita ciclo de disco zero e intervalo agressivo' {
+        $cmd = Get-Command Monitorar-Recursos
+        $ciclos = $cmd.Parameters['CiclosDisco'].Attributes |
+            Where-Object { $_ -is [System.Management.Automation.ValidateRangeAttribute] }
+        $intervalo = $cmd.Parameters['IntervaloMs'].Attributes |
+            Where-Object { $_ -is [System.Management.Automation.ValidateRangeAttribute] }
+
+        $ciclos.MinRange | Should -Be 1
+        $intervalo.MinRange | Should -Be 50
+    }
+}
