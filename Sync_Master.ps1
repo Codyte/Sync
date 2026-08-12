@@ -1,30 +1,32 @@
 ﻿# ====================== BEGIN NAV INDEX ======================
 # NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
-#   L38    PARTE 1: BLOCO DE PARÂMETROS ÚNICO ---
-#   L58    PARTE 1.1: Relançamento automático em PowerShell 7+ (compatível PS 5)
-#   L132   PARTE 2: REGIÃO CENTRALIZADA DE FUNÇÕES ---
-#   L207   Menu-Otimizacao
-#   L241   Criar-PontoRestauracao
-#   L326   Restaurar-PontoRestauracao
-#   L461   Menu-LimpezaDisco
-#   L489   Configurar-ServicoDefrag
-#   L593   Utilitários robustos ===============================================
-#   L614   Menu-ReparoSistema
-#   L643   Get-PowerPlans
-#   L664   Criar-PlanoDeEnergia
-#   L680   Menu-CriarPlanoEnergia
-#   L701   Menu-OtimizacaoAvancada
-#   L788   Menu-Desempenho
-#   L853   Menu-GerenciarAgentes
-#   L891   Gerenciar-ServicoDeAgente
-#   L941   Menu-Ferramentas
-#   L967   Menu-Avancado
-#   L1009  Gerenciar-EstadosOciososProcessador
-#   L1052  Utilitário: enviar arquivo para a Lixeira (PS 5/7) ---
-#   L1087  Criar-App
-#   L1150  Executor
-#   L1224  Aliases de verbo aprovado (retrocompat) ---
-#   L1233  PARTE 3: LÓGICA DE EXECUÇÃO PRINCIPAL ---
+#   L40    PARTE 1: BLOCO DE PARÂMETROS ÚNICO ---
+#   L58    New-SyncMasterRelaunchArguments
+#   L84    Start-SyncMasterInPowerShell7
+#   L110   PARTE 1.1: Relançamento automático em PowerShell 7+ (compatível PS 5)
+#   L153   PARTE 2: REGIÃO CENTRALIZADA DE FUNÇÕES ---
+#   L228   Menu-Otimizacao
+#   L262   Criar-PontoRestauracao
+#   L347   Restaurar-PontoRestauracao
+#   L482   Menu-LimpezaDisco
+#   L510   Configurar-ServicoDefrag
+#   L614   Utilitários robustos ===============================================
+#   L635   Menu-ReparoSistema
+#   L664   Get-PowerPlans
+#   L685   Criar-PlanoDeEnergia
+#   L701   Menu-CriarPlanoEnergia
+#   L722   Menu-OtimizacaoAvancada
+#   L809   Menu-Desempenho
+#   L874   Menu-GerenciarAgentes
+#   L912   Gerenciar-ServicoDeAgente
+#   L962   Menu-Ferramentas
+#   L988   Menu-Avancado
+#   L1030  Gerenciar-EstadosOciososProcessador
+#   L1073  Utilitário: enviar arquivo para a Lixeira (PS 5/7) ---
+#   L1108  Criar-App
+#   L1171  Executor
+#   L1245  Aliases de verbo aprovado (retrocompat) ---
+#   L1254  PARTE 3: LÓGICA DE EXECUÇÃO PRINCIPAL ---
 # ======================= END NAV INDEX =======================
 
 # ===================================================================
@@ -52,6 +54,56 @@ param (
     [ValidateSet("Unilateral", "Bilateral")]
     [string]$Modo = "Unilateral"
 )
+
+function New-SyncMasterRelaunchArguments {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)][string]$ScriptPath,
+        [Parameter(Mandatory)][System.Collections.IDictionary]$BoundParameters
+    )
+
+    $quote = {
+        param([AllowEmptyString()][string]$Value)
+        "'{0}'" -f $Value.Replace("'", "''")
+    }
+
+    $commandParts = @('&', (& $quote $ScriptPath), '-IsRelaunched')
+    foreach ($name in 'Acao', 'Origem', 'Destino', 'Modo') {
+        if ($BoundParameters.Keys -contains $name) {
+            $commandParts += @("-$name", (& $quote ([string]$BoundParameters[$name])))
+        }
+    }
+
+    $encodedCommand = [Convert]::ToBase64String(
+        [Text.Encoding]::Unicode.GetBytes(($commandParts -join ' '))
+    )
+    return "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encodedCommand"
+}
+
+function Start-SyncMasterInPowerShell7 {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$PwshPath,
+        [Parameter(Mandatory)][string]$ScriptPath,
+        [Parameter(Mandatory)][System.Collections.IDictionary]$BoundParameters
+    )
+
+    $isAdmin = (
+        [Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
+    ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+    $startSplat = @{
+        FilePath         = $PwshPath
+        ArgumentList     = New-SyncMasterRelaunchArguments -ScriptPath $ScriptPath -BoundParameters $BoundParameters
+        WorkingDirectory = (Get-Location)
+        WindowStyle      = 'Normal'
+        PassThru         = $true
+    }
+    if ($isAdmin) { $startSplat['Verb'] = 'RunAs' }
+
+    Start-Process @startSplat
+}
 
 
 
@@ -83,47 +135,16 @@ if ($PSVersionTable.PSVersion.Major -lt 7 -and -not $IsRelaunched) {
         Write-Warning "PowerShell 7 (pwsh.exe) não encontrado. Continuando no PS 5.x."
     }
     else {
-        # Mantém elevação se a sessão atual estiver como Admin
-        $isAdmin = (
-            [Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
-        ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-
-        # Reconstrói os argumentos do script atual (sem aspas internas; Start-Process cuida disso)
-        $argList = @(
-            '-NoProfile','-ExecutionPolicy','Bypass',
-            '-File', $PSCommandPath,
-            '-IsRelaunched' # evita loop
-        )
-
-        # Repassa parâmetros nomeados informados
-        if ($PSBoundParameters.ContainsKey('Acao'))    { $argList += @('-Acao',    $Acao) }
-        if ($PSBoundParameters.ContainsKey('Origem'))  { $argList += @('-Origem',  $Origem) }
-        if ($PSBoundParameters.ContainsKey('Destino')) { $argList += @('-Destino', $Destino) }
-        if ($PSBoundParameters.ContainsKey('Modo'))    { $argList += @('-Modo',    $Modo) }
-
-        $startSplat = @{
-            FilePath         = $pwsh
-            ArgumentList     = $argList
-            WorkingDirectory = (Get-Location)
-            WindowStyle      = 'Normal'
-            PassThru         = $true
+        try {
+            $null = Start-SyncMasterInPowerShell7 `
+                -PwshPath $pwsh `
+                -ScriptPath $PSCommandPath `
+                -BoundParameters $PSBoundParameters
         }
-        if ($isAdmin) { $startSplat['Verb'] = 'RunAs' }
-
-$child = Start-Process @startSplat
-
-if ($child -and -not $child.HasExited) {
-    # Dá tempo da nova janela do PS7 abrir e “roubar o foco”
-    Start-Sleep -Milliseconds 300
-
-    # Fechamento em camadas — alguns hosts ignoram um método mas respeitam outro
-    try { $Host.SetShouldExit(0) } catch {  Write-Verbose $_.Exception.Message }
-
-    try { [System.Environment]::Exit(0) } catch {  Write-Verbose $_.Exception.Message }
-
-    try { Stop-Process -Id $PID -Force } catch {  Write-Verbose $_.Exception.Message }
-}
-
+        catch {
+            Write-Error ("Falha ao relançar no PowerShell 7: {0}" -f $_.Exception.Message)
+        }
+        return
     }
 }
 # ------------------------------------------------------------------------
@@ -1254,21 +1275,20 @@ if ($PSVersionTable.PSVersion.Major -lt 7 -and -not $IsRelaunched) {
                 $pwsh7 = Find-PwshPath
                 if ($pwsh7) {
                     Write-Host "PowerShell 7 instalado. Relançando o script..." -ForegroundColor Green
-                    $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, '-IsRelaunched')
-                    foreach ($p in 'Acao', 'Origem', 'Destino', 'Modo') {
-                        if ($PSBoundParameters.ContainsKey($p)) { $argList += @("-$p", (Get-Variable -Name $p -ValueOnly)) }
+                    try {
+                        $null = Start-SyncMasterInPowerShell7 `
+                            -PwshPath $pwsh7 `
+                            -ScriptPath $PSCommandPath `
+                            -BoundParameters $PSBoundParameters
+                        return
                     }
-                    $startSplat = @{
-                        FilePath         = $pwsh7
-                        ArgumentList     = $argList
-                        WorkingDirectory = (Get-Location)
-                        WindowStyle      = 'Normal'
+                    catch {
+                        Write-Warning ("PowerShell 7 instalado, mas o relançamento falhou: {0}" -f $_.Exception.Message)
                     }
-                    if (Test-IsAdmin) { $startSplat['Verb'] = 'RunAs' }
-                    Start-Process @startSplat
-                    exit
                 }
-                Write-Warning "Instalação concluída, mas o pwsh.exe não foi localizado. Reinicie o script manualmente."
+                else {
+                    Write-Warning "Instalação concluída, mas o pwsh.exe não foi localizado. Reinicie o script manualmente."
+                }
             }
             else {
                 Write-Warning "A instalação automática falhou em todos os métodos. Abrindo o menu de atualização..."

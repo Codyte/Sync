@@ -3,7 +3,7 @@
 ↑ repo tree: [`../__navi__.md`](../__navi__.md)
 
 - **Backup.Tests.ps1** (62 ln)
-- **Bootstrap.Tests.ps1** (62 ln)
+- **Bootstrap.Tests.ps1** (104 ln)
 - **Hardware.Tests.ps1** (44 ln)
 - **Manifest.Tests.ps1** (27 ln)
 - **Menu.Tests.ps1** (50 ln)

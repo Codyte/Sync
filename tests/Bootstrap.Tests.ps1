@@ -60,3 +60,45 @@ Describe 'install.ps1' {
         }
     }
 }
+
+Describe 'relancamento do Sync Master no PowerShell 7' {
+    BeforeAll {
+        $mainScript = Join-Path (Split-Path $PSScriptRoot -Parent) 'Sync_Master.ps1'
+        $tokens = $null
+        $errors = $null
+        $ast = [Management.Automation.Language.Parser]::ParseFile($mainScript, [ref]$tokens, [ref]$errors)
+        $functionAst = $ast.Find({
+            param($node)
+            $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -eq 'New-SyncMasterRelaunchArguments'
+        }, $true)
+
+        $errors.Count | Should -Be 0
+        $functionAst | Should -Not -BeNullOrEmpty
+        . ([scriptblock]::Create($functionAst.Extent.Text))
+    }
+
+    It 'preserva caminhos com espacos e apostrofos no comando codificado' {
+        $arguments = & {
+            [CmdletBinding()]
+            param($Acao, $Origem, $Destino, $Modo)
+
+            New-SyncMasterRelaunchArguments `
+                -ScriptPath 'C:\Perfil com espaco\Sync_Master.ps1' `
+                -BoundParameters $PSBoundParameters
+        } `
+            -Acao 'Sincronizar' `
+            -Origem "C:\Origem com espaco\D'Agua\" `
+            -Destino 'D:\Destino com espaco' `
+            -Modo 'Bilateral'
+        $encoded = ([regex]::Match($arguments, '-EncodedCommand\s+(\S+)$')).Groups[1].Value
+        $decoded = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($encoded))
+
+        $decoded | Should -Be "& 'C:\Perfil com espaco\Sync_Master.ps1' -IsRelaunched -Acao 'Sincronizar' -Origem 'C:\Origem com espaco\D''Agua\' -Destino 'D:\Destino com espaco' -Modo 'Bilateral'"
+    }
+
+    It 'nao encerra a sessao inteira do Windows PowerShell' {
+        $content = Get-Content -LiteralPath $mainScript -Raw
+        $content | Should -Not -Match '\[System\.Environment\]::Exit|Stop-Process\s+-Id\s+\$PID'
+    }
+}
