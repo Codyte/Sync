@@ -32,6 +32,136 @@ Describe 'Parse-Selection' {
     }
 }
 
+Describe 'Startups preservam itens em falhas e colisoes' {
+    BeforeEach {
+        Mock Require-Admin {} -ModuleName Otimizacao
+        Mock Registrar-Log {} -ModuleName Otimizacao
+        Mock Ensure-Dir {} -ModuleName Otimizacao
+        Mock Write-Host {} -ModuleName Otimizacao
+        Mock Write-Warning {} -ModuleName Otimizacao
+    }
+
+    It 'nao renomeia nem remove atalho quando o backup falha' {
+        Mock Get-Startups {
+            [pscustomobject]@{
+                SourceType = 'Folder'; Scope = 'UserFolder'; Enabled = $true
+                Name = 'app.lnk'; Command = 'C:\Startup\app.lnk'
+            }
+        } -ModuleName Otimizacao
+        Mock Test-Path { $LiteralPath -eq 'C:\Startup\app.lnk' } -ModuleName Otimizacao
+        Mock Move-Item { throw 'destino indisponivel' } -ModuleName Otimizacao
+        Mock Rename-Item {} -ModuleName Otimizacao
+        Mock Remove-Item {} -ModuleName Otimizacao
+
+        Disable-StartupByNumber -Indexes 1
+
+        Should -Invoke Rename-Item -ModuleName Otimizacao -Times 0
+        Should -Invoke Remove-Item -ModuleName Otimizacao -Times 0
+    }
+
+    It 'nao sobrescreve atalho ja existente no backup' {
+        Mock Get-Startups {
+            [pscustomobject]@{
+                SourceType = 'Folder'; Scope = 'UserFolder'; Enabled = $true
+                Name = 'app.lnk'; Command = 'C:\Startup\app.lnk'
+            }
+        } -ModuleName Otimizacao
+        Mock Test-Path { $true } -ModuleName Otimizacao
+        Mock Move-Item {} -ModuleName Otimizacao
+
+        Disable-StartupByNumber -Indexes 1
+
+        Should -Invoke Move-Item -ModuleName Otimizacao -Times 0
+    }
+
+    It 'nao sobrescreve valor de Registro ja existente no backup' {
+        Mock Get-Startups {
+            [pscustomobject]@{
+                SourceType = 'Registry'; Scope = 'User'; Enabled = $true
+                Name = 'App'; Command = 'novo.exe'; CurrentDir = 'HKCU:\Run'
+            }
+        } -ModuleName Otimizacao
+        Mock Get-ItemProperty { [pscustomobject]@{ App = 'anterior.exe' } } -ModuleName Otimizacao
+        Mock New-ItemProperty {} -ModuleName Otimizacao
+        Mock Remove-ItemProperty {} -ModuleName Otimizacao
+
+        Disable-StartupByNumber -Indexes 1
+
+        Should -Invoke New-ItemProperty -ModuleName Otimizacao -Times 0
+        Should -Invoke Remove-ItemProperty -ModuleName Otimizacao -Times 0
+    }
+
+    It 'nao sobrescreve atalho ativo ao reativar backup' {
+        Mock Get-Startups {
+            [pscustomobject]@{
+                SourceType = 'Folder'; Scope = 'UserFolder'; Enabled = $false
+                Name = 'app.lnk'; Command = 'C:\Backup\app.lnk'; RestoreDir = 'C:\Startup'
+            }
+        } -ModuleName Otimizacao
+        Mock Test-Path { $true } -ModuleName Otimizacao
+        Mock Move-Item {} -ModuleName Otimizacao
+
+        Enable-StartupByNumber -Indexes 1
+
+        Should -Invoke Move-Item -ModuleName Otimizacao -Times 0
+    }
+
+    It 'nao sobrescreve valor ativo do Registro ao reativar backup' {
+        Mock Get-Startups {
+            [pscustomobject]@{
+                SourceType = 'Registry'; Scope = 'User'; Enabled = $false
+                Name = 'App'; Command = 'backup.exe'
+            }
+        } -ModuleName Otimizacao
+        Mock Get-ItemProperty { [pscustomobject]@{ App = 'ativo.exe' } } -ModuleName Otimizacao
+        Mock New-Item {} -ModuleName Otimizacao
+        Mock New-ItemProperty {} -ModuleName Otimizacao
+        Mock Remove-ItemProperty {} -ModuleName Otimizacao
+
+        Enable-StartupByNumber -Indexes 1
+
+        Should -Invoke New-ItemProperty -ModuleName Otimizacao -Times 0
+        Should -Invoke Remove-ItemProperty -ModuleName Otimizacao -Times 0
+    }
+
+    It 'move atalho para o backup quando nao ha colisao' {
+        Mock Get-Startups {
+            [pscustomobject]@{
+                SourceType = 'Folder'; Scope = 'UserFolder'; Enabled = $true
+                Name = 'app.lnk'; Command = 'C:\Startup\app.lnk'
+            }
+        } -ModuleName Otimizacao
+        Mock Test-Path { $LiteralPath -eq 'C:\Startup\app.lnk' } -ModuleName Otimizacao
+        Mock Move-Item {} -ModuleName Otimizacao
+
+        Disable-StartupByNumber -Indexes 1
+
+        Should -Invoke Move-Item -ModuleName Otimizacao -Times 1 -ParameterFilter {
+            $LiteralPath -eq 'C:\Startup\app.lnk' -and $ErrorAction -eq 'Stop'
+        }
+    }
+
+    It 'reativa valor de Registro com escrita terminante quando nao ha colisao' {
+        Mock Get-Startups {
+            [pscustomobject]@{
+                SourceType = 'Registry'; Scope = 'User'; Enabled = $false
+                Name = 'App'; Command = 'backup.exe'
+            }
+        } -ModuleName Otimizacao
+        Mock Get-ItemProperty { $null } -ModuleName Otimizacao
+        Mock New-Item {} -ModuleName Otimizacao
+        Mock New-ItemProperty {} -ModuleName Otimizacao
+        Mock Remove-ItemProperty {} -ModuleName Otimizacao
+
+        Enable-StartupByNumber -Indexes 1
+
+        Should -Invoke New-ItemProperty -ModuleName Otimizacao -Times 1 -ParameterFilter {
+            $Name -eq 'App' -and $Value -eq 'backup.exe' -and $ErrorAction -eq 'Stop'
+        }
+        Should -Invoke Remove-ItemProperty -ModuleName Otimizacao -Times 1
+    }
+}
+
 Describe 'Get-SyncMasterDataDir' {
     It 'respeita o override $env:SYNCMASTER_DATA_DIR e cria a pasta' {
         $old = $env:SYNCMASTER_DATA_DIR

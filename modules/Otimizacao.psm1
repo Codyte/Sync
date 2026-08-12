@@ -11,13 +11,13 @@
 #   L147   Get-Startups
 #   L245   Parse-Selection
 #   L286   Disable-StartupByNumber
-#   L362   Enable-StartupByNumber
-#   L404   Menu-Startups
-#   L448   Storage-Maintenance
-#   L493   Disk-SMART
-#   L509   Power-CPU-Tune
-#   L546   SearchIndexer-Toggle
-#   L562   Tasks-Noise
+#   L338   Enable-StartupByNumber
+#   L389   Menu-Startups
+#   L433   Storage-Maintenance
+#   L478   Disk-SMART
+#   L494   Power-CPU-Tune
+#   L531   SearchIndexer-Toggle
+#   L547   Tasks-Noise
 # ======================= END NAV INDEX =======================
 
 <#
@@ -299,9 +299,13 @@ function Disable-StartupByNumber {
         if ($it.SourceType -eq 'Registry') {
             # --- Registro: mover valor para chave de backup (User/Machine) ---
             $destKey = if ($it.Scope -eq 'Machine') { $script:StartupsBackupKeyMachine } else { $script:StartupsBackupKeyUser }
+            if ($null -ne (Get-ItemProperty -Path $destKey -Name $it.Name -ErrorAction SilentlyContinue)) {
+                Write-Warning ("[{0}] Backup de '{1}' ja existe; item preservado." -f $idx,$it.Name)
+                continue
+            }
             Ensure-Dir $destKey
             try {
-                New-ItemProperty -Path $destKey -Name $it.Name -Value $it.Command -PropertyType String -Force | Out-Null
+                New-ItemProperty -Path $destKey -Name $it.Name -Value $it.Command -PropertyType String -ErrorAction Stop | Out-Null
                 Remove-ItemProperty -Path $it.CurrentDir -Name $it.Name -Force -ErrorAction Stop
                 Write-Host ("[{0}] {1} -> DESABILITADO (backup: {2})" -f $idx,$it.Name,$destKey) -ForegroundColor Yellow
             } catch {
@@ -313,47 +317,19 @@ function Disable-StartupByNumber {
             $bkDir = if ($it.Scope -eq 'CommonFolder') { $script:StartupBackupCommon } else { $script:StartupBackupUser }
             Ensure-Dir $bkDir
             $dst = Join-Path $bkDir $it.Name
+            if (Test-Path -LiteralPath $dst) {
+                Write-Warning ("[{0}] Backup de '{1}' ja existe; atalho preservado." -f $idx,$it.Name)
+                continue
+            }
+            if (-not (Test-Path -LiteralPath $src)) {
+                Write-Warning ("[{0}] Atalho '{1}' nao foi encontrado." -f $idx,$it.Name)
+                continue
+            }
             try {
-                if (Test-Path -LiteralPath $src) {
-                    Move-Item -LiteralPath $src -Destination $dst -Force -ErrorAction Stop
-                    if (-not (Test-Path -LiteralPath $src)) {
-                        Write-Host ("[{0}] {1} -> DESABILITADO (movido para {2})" -f $idx,$it.Name,$bkDir) -ForegroundColor Yellow
-                        continue
-                    }
-                }
+                Move-Item -LiteralPath $src -Destination $dst -ErrorAction Stop
+                Write-Host ("[{0}] {1} -> DESABILITADO (movido para {2})" -f $idx,$it.Name,$bkDir) -ForegroundColor Yellow
             } catch {
-                # segue para fallback
-             Write-Verbose $_.Exception.Message }
-
-            # Fallback 1: renomeia para .disabled no mesmo local
-            try {
-                if (Test-Path -LiteralPath $src) {
-                    $disabled = "$src.disabled"
-                    if (Test-Path -LiteralPath $disabled) {
-                        $ts = (Get-Date -Format "yyyyMMddHHmmss")
-                        $disabled = "$src.$ts.disabled"
-                    }
-                    Rename-Item -LiteralPath $src -NewName (Split-Path -Leaf $disabled) -ErrorAction Stop
-                    if (-not (Test-Path -LiteralPath $src)) {
-                        Write-Host ("[{0}] {1} -> DESABILITADO (renomeado para {2})" -f $idx,$it.Name,$disabled) -ForegroundColor Yellow
-                        continue
-                    }
-                }
-            } catch {
-                # segue para último recurso
-             Write-Verbose $_.Exception.Message }
-
-            # Fallback 2: remover
-            try {
-                if (Test-Path -LiteralPath $src) {
-                    Remove-Item -LiteralPath $src -Force -ErrorAction Stop
-                    if (-not (Test-Path -LiteralPath $src)) {
-                        Write-Host ("[{0}] {1} -> DESABILITADO (removido)" -f $idx,$it.Name) -ForegroundColor Yellow
-                        continue
-                    }
-                }
-            } catch {
-                Write-Warning ("[{0}] Falha ao desabilitar '{1}' (atalho): {2}" -f $idx,$it.Name,$_.Exception.Message)
+                Write-Warning ("[{0}] Falha ao desabilitar '{1}' (atalho preservado): {2}" -f $idx,$it.Name,$_.Exception.Message)
             }
         }
     }
@@ -377,9 +353,13 @@ function Enable-StartupByNumber {
             # restaurar para HKCU/HKLM Run conforme Scope
             $destKey = if ($it.Scope -eq 'Machine') { 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run' } else { 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' }
             $bkKey   = if ($it.Scope -eq 'Machine') { $script:StartupsBackupKeyMachine } else { $script:StartupsBackupKeyUser }
+            if ($null -ne (Get-ItemProperty -Path $destKey -Name $it.Name -ErrorAction SilentlyContinue)) {
+                Write-Warning ("'{0}' ja existe em {1}; backup preservado." -f $it.Name,$destKey)
+                continue
+            }
             try {
-                New-Item -Path $destKey -Force | Out-Null
-                New-ItemProperty -Path $destKey -Name $it.Name -Value $it.Command -PropertyType String -Force | Out-Null
+                New-Item -Path $destKey -Force -ErrorAction Stop | Out-Null
+                New-ItemProperty -Path $destKey -Name $it.Name -Value $it.Command -PropertyType String -ErrorAction Stop | Out-Null
                 Remove-ItemProperty -Path $bkKey -Name $it.Name -Force -ErrorAction SilentlyContinue
                 Write-Host ("[{0}] {1} -> REATIVADO em {2}" -f $idx,$it.Name,$destKey) -ForegroundColor Green
             } catch {
@@ -391,8 +371,13 @@ function Enable-StartupByNumber {
             if (-not $targetDir) {
                 $targetDir = if ($it.Scope -eq 'CommonFolder') { $script:StartupFolderCommon } else { $script:StartupFolderUser }
             }
+            $target = Join-Path $targetDir $it.Name
+            if (Test-Path -LiteralPath $target) {
+                Write-Warning ("'{0}' ja existe em {1}; backup preservado." -f $it.Name,$targetDir)
+                continue
+            }
             try {
-                Move-Item -LiteralPath $it.Command -Destination (Join-Path $targetDir $it.Name) -Force
+                Move-Item -LiteralPath $it.Command -Destination $target -ErrorAction Stop
                 Write-Host ("[{0}] {1} -> REATIVADO em {2}" -f $idx,$it.Name,$targetDir) -ForegroundColor Green
             } catch {
                 Write-Warning ("Falha ao reativar '{0}': {1}" -f $it.Name, $_.Exception.Message)
