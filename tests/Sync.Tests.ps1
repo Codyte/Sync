@@ -133,6 +133,12 @@ Describe 'Test-ParOrigemDestino' {
         $sub = Join-Path $script:oDir 'Backup'
         Test-ParOrigemDestino -Origem $script:oDir -Destino $sub -ErrorAction SilentlyContinue | Should -BeFalse
     }
+    It 'rejeita destino inexistente que normaliza para dentro da origem' {
+        $parent = Split-Path $script:oDir -Parent
+        $leaf = Split-Path $script:oDir -Leaf
+        $sub = Join-Path (Join-Path $parent 'nao_existe') "..\$leaf\Backup"
+        Test-ParOrigemDestino -Origem $script:oDir -Destino $sub -ErrorAction SilentlyContinue | Should -BeFalse
+    }
     It 'rejeita origem DENTRO do destino (aninhado inverso)' {
         $sub = Join-Path $script:dDir 'Sub'
         New-Item -ItemType Directory -Path $sub -Force | Out-Null

@@ -653,9 +653,9 @@ function Test-ParOrigemDestino {
         Write-Error "Origem inexistente ou não é uma pasta: $Origem"
         return $false
     }
-    # Destino pode ainda nao existir (robocopy cria); so normaliza o que da pra resolver.
+    # Destino pode ainda nao existir (robocopy cria); GetFullPath normaliza inclusive '..'.
     $oReal = (Convert-Path -LiteralPath $Origem).TrimEnd('\')
-    $dReal = if (Test-Path -LiteralPath $Destino) { (Convert-Path -LiteralPath $Destino).TrimEnd('\') } else { $Destino.TrimEnd('\') }
+    $dReal = if (Test-Path -LiteralPath $Destino) { (Convert-Path -LiteralPath $Destino).TrimEnd('\') } else { [IO.Path]::GetFullPath($Destino).TrimEnd('\') }
     if ($oReal -ieq $dReal) {
         Write-Error "Origem e destino não podem ser o mesmo caminho: $oReal"
         return $false
