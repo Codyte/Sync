@@ -7,17 +7,17 @@
 #   L78    Show-Estado
 #   L94    Toggle-PowerPlan
 #   L108   Clean-Temp
-#   L129   STARTUPS (com seleção por números) =================================
-#   L147   Get-Startups
-#   L245   Parse-Selection
-#   L286   Disable-StartupByNumber
-#   L338   Enable-StartupByNumber
-#   L389   Menu-Startups
-#   L433   Storage-Maintenance
-#   L478   Disk-SMART
-#   L494   Power-CPU-Tune
-#   L531   SearchIndexer-Toggle
-#   L547   Tasks-Noise
+#   L152   STARTUPS (com seleção por números) =================================
+#   L170   Get-Startups
+#   L268   Parse-Selection
+#   L309   Disable-StartupByNumber
+#   L361   Enable-StartupByNumber
+#   L412   Menu-Startups
+#   L456   Storage-Maintenance
+#   L501   Disk-SMART
+#   L517   Power-CPU-Tune
+#   L554   SearchIndexer-Toggle
+#   L570   Tasks-Noise
 # ======================= END NAV INDEX =======================
 
 <#
@@ -107,9 +107,32 @@ function Pause-Local { Pause-Script }
     }
     function Clean-Temp {
         Require-Admin
-        $paths = @("$env:TEMP\*", "$env:WINDIR\Temp\*")
-        foreach ($p in $paths) {
-            try { Remove-Item -Path $p -Recurse -Force -ErrorAction SilentlyContinue } catch { Write-Verbose $_.Exception.Message }
+        $paths = @()
+        if ([string]::IsNullOrWhiteSpace($env:TEMP)) {
+            Write-Warning 'TEMP nao esta definido; temporarios do usuario nao foram limpos.'
+        } else { $paths += $env:TEMP }
+        if ([string]::IsNullOrWhiteSpace($env:WINDIR)) {
+            Write-Warning 'WINDIR nao esta definido; temporarios do Windows nao foram limpos.'
+        } else { $paths += (Join-Path $env:WINDIR 'Temp') }
+
+        foreach ($p in ($paths | Sort-Object -Unique)) {
+            try {
+                if ($p -notmatch '^[A-Za-z]:[\\/]') {
+                    Write-Warning "Caminho temporario nao absoluto ignorado: $p"
+                    continue
+                }
+                $full = [IO.Path]::GetFullPath($p)
+                if ($full -eq [IO.Path]::GetPathRoot($full)) {
+                    Write-Warning "Raiz de volume recusada como caminho temporario: $full"
+                    continue
+                }
+                if (-not (Test-Path -LiteralPath $full -PathType Container -ErrorAction Stop)) { continue }
+                Get-ChildItem -LiteralPath $full -Force -ErrorAction SilentlyContinue | ForEach-Object {
+                    Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            } catch {
+                Write-Warning ("Caminho temporario ignorado ({0}): {1}" -f $p,$_.Exception.Message)
+            }
         }
         try {
             # Dism.exe e nativo: exit != 0 NAO lanca. O catch so pega Dism.exe ausente;

@@ -32,6 +32,56 @@ Describe 'Parse-Selection' {
     }
 }
 
+Describe 'Clean-Temp limita a remocao a diretorios temporarios seguros' {
+    BeforeEach {
+        Mock Require-Admin {} -ModuleName Otimizacao
+        Mock 'Dism.exe' { $global:LASTEXITCODE = 0 } -ModuleName Otimizacao
+        Mock Registrar-Log {} -ModuleName Otimizacao
+        Mock Write-Host {} -ModuleName Otimizacao
+        Mock Write-Warning {} -ModuleName Otimizacao
+        Mock Remove-Item {} -ModuleName Otimizacao
+    }
+
+    It 'nao remove nada quando TEMP e WINDIR estao ausentes' {
+        $oldTemp = $env:TEMP; $oldWindir = $env:WINDIR
+        try {
+            $env:TEMP = $null; $env:WINDIR = $null
+            Clean-Temp
+            Should -Invoke Remove-Item -ModuleName Otimizacao -Times 0
+        } finally {
+            $env:TEMP = $oldTemp; $env:WINDIR = $oldWindir
+        }
+    }
+
+    It 'nao remove nada quando TEMP aponta para a raiz do volume' {
+        $oldTemp = $env:TEMP; $oldWindir = $env:WINDIR
+        try {
+            $env:TEMP = 'C:\'; $env:WINDIR = $null
+            Clean-Temp
+            Should -Invoke Remove-Item -ModuleName Otimizacao -Times 0
+        } finally {
+            $env:TEMP = $oldTemp; $env:WINDIR = $oldWindir
+        }
+    }
+
+    It 'enumera e remove somente filhos literais de um TEMP valido' {
+        $oldTemp = $env:TEMP; $oldWindir = $env:WINDIR
+        try {
+            $env:TEMP = 'C:\Temp'; $env:WINDIR = $null
+            Mock Test-Path { $true } -ModuleName Otimizacao
+            Mock Get-ChildItem { [pscustomobject]@{ FullName = 'C:\Temp\arquivo[1].tmp' } } -ModuleName Otimizacao
+
+            Clean-Temp
+
+            Should -Invoke Remove-Item -ModuleName Otimizacao -Times 1 -ParameterFilter {
+                $LiteralPath -eq 'C:\Temp\arquivo[1].tmp'
+            }
+        } finally {
+            $env:TEMP = $oldTemp; $env:WINDIR = $oldWindir
+        }
+    }
+}
+
 Describe 'Startups preservam itens em falhas e colisoes' {
     BeforeEach {
         Mock Require-Admin {} -ModuleName Otimizacao

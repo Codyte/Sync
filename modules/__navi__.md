@@ -14,8 +14,8 @@
   <sub>L7:Get-CpuRapido  L17:Get-MemUsoMB  L27:Get-DiscosInfo  L41:Monitorar-Recursos  L111:Merge-DiscoFisico  L133:Diagnostico-Hardware  L187:MAPA DISCO → PARTIÇÃO → VOLUME ---  L217:Get-CpuUsageRobusto</sub>
 - **Menu.psm1** (62 ln)
   <sub>L14:Get-MenuPrincipal  L43:Show-MenuPrincipal</sub>
-- **Otimizacao.psm1** (583 ln)
-  <sub>L31:Pause-Local  L36:Is-ServerOS  L42:Set-DWord  L52:Backup-Registro  L78:Show-Estado  L94:Toggle-PowerPlan  L108:Clean-Temp  L129:STARTUPS (com seleção por números) =================================  L147:Get-Startups  L245:Parse-Selection  L286:Disable-StartupByNumber  L338:Enable-StartupByNumber  L389:Menu-Startups  L433:Storage-Maintenance  L478:Disk-SMART  L494:Power-CPU-Tune  L531:SearchIndexer-Toggle  L547:Tasks-Noise</sub>
+- **Otimizacao.psm1** (606 ln)
+  <sub>L31:Pause-Local  L36:Is-ServerOS  L42:Set-DWord  L52:Backup-Registro  L78:Show-Estado  L94:Toggle-PowerPlan  L108:Clean-Temp  L152:STARTUPS (com seleção por números) =================================  L170:Get-Startups  L268:Parse-Selection  L309:Disable-StartupByNumber  L361:Enable-StartupByNumber  L412:Menu-Startups  L456:Storage-Maintenance  L501:Disk-SMART  L517:Power-CPU-Tune  L554:SearchIndexer-Toggle  L570:Tasks-Noise</sub>
 - **PowerShellUpdate.psm1** (360 ln)
   <sub>L24:Get-VersionFromReleaseUrl  L36:Get-LatestPowerShellVersion  L93:Invoke-WingetInstall  L120:Install-PowerShellFromMsi  L155:Start-PowerShellInstallation  L182:Find-PwshPath  L207:Install-PowerShell7  L260:Get-InstallerInfo  L286:Menu-AtualizacaoPowerShell</sub>
 - **Rede.psm1** (452 ln)
