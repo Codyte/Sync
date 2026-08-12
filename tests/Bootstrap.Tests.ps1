@@ -5,6 +5,15 @@
 # Pester 5 - teste local do instalador remoto, sem rede e sem iniciar processos.
 
 Describe 'install.ps1' {
+    It 'e ASCII sem BOM e pode ser interpretado pelo pipeline do PowerShell 5.1' {
+        $installer = Join-Path (Split-Path $PSScriptRoot -Parent) 'install.ps1'
+        $bytes = [IO.File]::ReadAllBytes($installer)
+
+        @($bytes | Where-Object { $_ -gt 127 }).Count | Should -Be 0
+        $bootstrap = [scriptblock]::Create([Text.Encoding]::ASCII.GetString($bytes))
+        { & $bootstrap -WhatIf } | Should -Not -Throw
+    }
+
     It 'instala o pacote completo e preserva os dados do usuario' {
         $oldLocalAppData = $env:LOCALAPPDATA
         $env:LOCALAPPDATA = Join-Path $TestDrive 'LocalAppData'

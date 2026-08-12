@@ -1,7 +1,3 @@
-﻿# ====================== BEGIN NAV INDEX ======================
-# NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
-# ======================= END NAV INDEX =======================
-
 #Requires -Version 5.1
 <#
 .SYNOPSIS
@@ -24,6 +20,10 @@ if (-not $base) { throw 'LOCALAPPDATA e USERPROFILE nao estao disponiveis.' }
 $appRoot = Join-Path $base 'SyncMaster'
 $installDir = Join-Path $appRoot 'App'
 # Em `irm ... | iex`, $PSCmdlet pode ser nulo; em chamada direta, preserva -WhatIf/-Confirm.
+if ($WhatIfPreference) {
+    Write-Host "What if: instalar ou atualizar o Sync Master em '$installDir'."
+    return
+}
 if ($PSCmdlet -and -not $PSCmdlet.ShouldProcess($installDir, 'Instalar ou atualizar o Sync Master')) { return }
 
 $workDir = Join-Path ([IO.Path]::GetTempPath()) ('SyncMaster-' + [guid]::NewGuid().ToString('N'))
