@@ -1,31 +1,30 @@
 ﻿# ====================== BEGIN NAV INDEX ======================
 # NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
-#   L39    PARTE 1: BLOCO DE PARÂMETROS ÚNICO ---
-#   L56    PARTE 1.1: Relançamento automático em PowerShell 7+ ----------------
-#   L60    PARTE 1.1: Relançamento automático em PowerShell 7+ (compatível PS 5) 
+#   L38    PARTE 1: BLOCO DE PARÂMETROS ÚNICO ---
+#   L58    PARTE 1.1: Relançamento automático em PowerShell 7+ (compatível PS 5)
 #   L132   PARTE 2: REGIÃO CENTRALIZADA DE FUNÇÕES ---
-#   L237   Menu-Otimizacao
-#   L271   Criar-PontoRestauracao
-#   L356   Restaurar-PontoRestauracao
-#   L491   Menu-LimpezaDisco
-#   L519   Configurar-ServicoDefrag
-#   L623   Utilitários robustos ===============================================
-#   L644   Menu-ReparoSistema
-#   L673   Get-PowerPlans
-#   L694   Criar-PlanoDeEnergia
-#   L710   Menu-CriarPlanoEnergia
-#   L731   Menu-OtimizacaoAvancada
-#   L818   Menu-Desempenho
-#   L883   Menu-GerenciarAgentes
-#   L921   Gerenciar-ServicoDeAgente
-#   L971   Menu-Ferramentas
-#   L997   Menu-Avancado
-#   L1039  Gerenciar-EstadosOciososProcessador
-#   L1082  Utilitário: enviar arquivo para a Lixeira (PS 5/7) ---
-#   L1117  Criar-App
-#   L1180  Executor
-#   L1254  Aliases de verbo aprovado (retrocompat) ---
-#   L1263  PARTE 3: LÓGICA DE EXECUÇÃO PRINCIPAL ---
+#   L207   Menu-Otimizacao
+#   L241   Criar-PontoRestauracao
+#   L326   Restaurar-PontoRestauracao
+#   L461   Menu-LimpezaDisco
+#   L489   Configurar-ServicoDefrag
+#   L593   Utilitários robustos ===============================================
+#   L614   Menu-ReparoSistema
+#   L643   Get-PowerPlans
+#   L664   Criar-PlanoDeEnergia
+#   L680   Menu-CriarPlanoEnergia
+#   L701   Menu-OtimizacaoAvancada
+#   L788   Menu-Desempenho
+#   L853   Menu-GerenciarAgentes
+#   L891   Gerenciar-ServicoDeAgente
+#   L941   Menu-Ferramentas
+#   L967   Menu-Avancado
+#   L1009  Gerenciar-EstadosOciososProcessador
+#   L1052  Utilitário: enviar arquivo para a Lixeira (PS 5/7) ---
+#   L1087  Criar-App
+#   L1150  Executor
+#   L1224  Aliases de verbo aprovado (retrocompat) ---
+#   L1233  PARTE 3: LÓGICA DE EXECUÇÃO PRINCIPAL ---
 # ======================= END NAV INDEX =======================
 
 # ===================================================================

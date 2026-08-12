@@ -860,10 +860,14 @@ function Agendar-TarefaSincronizacao {
     $nomeTarefa = "SincronizacaoEngOrtiz_" + (Get-Date -Format "yyyyMMdd")
     $trigger = New-ScheduledTaskTrigger -Daily -At $hora
     $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-    # Prefere o PS7 (caminho completo: a tarefa roda como SYSTEM, que pode nao ter pwsh no PATH).
-    # Sem pwsh instalado, powershell.exe serve: o launcher trata PS5 no modo automatizado sem prompt.
+    # Prefere o PS7, exceto o alias por usuario da Microsoft Store: a tarefa roda como SYSTEM
+    # e nao consegue executar um App Execution Alias de %LOCALAPPDATA% de outro usuario.
+    # Nesse caso, powershell.exe serve: o launcher trata PS5 no modo automatizado sem prompt.
     $pwshCmd = Get-Command -Name pwsh -ErrorAction SilentlyContinue
-    $exe = if ($pwshCmd -and $pwshCmd.Source) { $pwshCmd.Source } else { "powershell.exe" }
+    $pwshPath = if ($pwshCmd) { if ($pwshCmd.Source) { $pwshCmd.Source } else { $pwshCmd.Path } }
+    $storeAliasDir = if ($env:LOCALAPPDATA) { [IO.Path]::Combine($env:LOCALAPPDATA, 'Microsoft', 'WindowsApps') }
+    $isStoreAlias = $pwshPath -and $storeAliasDir -and $pwshPath.StartsWith($storeAliasDir, [StringComparison]::OrdinalIgnoreCase)
+    $exe = if ($pwshPath -and -not $isStoreAlias) { $pwshPath } else { "powershell.exe" }
     $action = New-ScheduledTaskAction -Execute $exe -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$entryScript`" -Acao Sincronizar -Origem `"$($origemObj.Caminho)`" -Destino `"$($destinoObj.Caminho)`""
     
     try {

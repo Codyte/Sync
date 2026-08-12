@@ -19,7 +19,8 @@ Describe 'SyncMaster.psd1 (manifesto)' {
     }
     It 'expoe funcao de dominio: <_>' -ForEach @(
         'Iniciar-Sincronizacao','Criar-BackupZIP','Monitorar-Recursos','Ping-Sweep',
-        'Menu-Ativacao','Get-RobocopyArgs','Parse-Selection','Verificar-IntegridadeArquivos'
+        'Menu-Ativacao','Get-RobocopyArgs','Parse-Selection','Verificar-IntegridadeArquivos',
+        'Install-PowerShell7','Find-PwshPath'
     ) {
         Get-Command $_ -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
     }

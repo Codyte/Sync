@@ -1,4 +1,8 @@
-﻿# Pester 5 — testes das funcoes PURAS do nucleo de sincronizacao (Fase B).
+﻿# ====================== BEGIN NAV INDEX ======================
+# NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
+# ======================= END NAV INDEX =======================
+
+# Pester 5 — testes das funcoes PURAS do nucleo de sincronizacao (Fase B).
 # Rodar:  Invoke-Pester -Path .\tests
 # Alvos: Get-RobocopyArgs e Get-RobocopyStatus (Sync.psm1).
 
@@ -288,5 +292,46 @@ Describe 'Get-RobocopyStatus' {
     }
     It 'devolve o proprio ExitCode no objeto' {
         (Get-RobocopyStatus -ExitCode 3).ExitCode | Should -Be 3
+    }
+}
+
+Describe 'Agendar-TarefaSincronizacao (PowerShell da tarefa SYSTEM)' {
+    BeforeEach {
+        $script:entryAnterior = $env:SYNCMASTER_ENTRY
+        $env:SYNCMASTER_ENTRY = Join-Path $root 'Sync_Master.ps1'
+
+        Mock Read-Host { '22:00' } -ModuleName Sync
+        Mock Selecionar-DiretorioDaLista { [pscustomobject]@{ Caminho = 'C:\dados' } } -ModuleName Sync
+        Mock New-ScheduledTaskTrigger { 'trigger' } -ModuleName Sync
+        Mock New-ScheduledTaskPrincipal { 'principal' } -ModuleName Sync
+        Mock New-ScheduledTaskAction { 'action' } -ModuleName Sync
+        Mock Register-ScheduledTask {} -ModuleName Sync -RemoveParameterType Trigger,Action,Principal
+        Mock Registrar-Log {} -ModuleName Sync
+        Mock Pause-Script {} -ModuleName Sync
+    }
+
+    AfterEach {
+        $env:SYNCMASTER_ENTRY = $script:entryAnterior
+    }
+
+    It 'nao entrega alias por usuario da Microsoft Store para a conta SYSTEM' {
+        $storeAlias = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\pwsh.exe'
+        Mock Get-Command { [pscustomobject]@{ Source = $storeAlias } } -ModuleName Sync
+
+        Agendar-TarefaSincronizacao
+
+        Should -Invoke New-ScheduledTaskAction -ModuleName Sync -Times 1 -ParameterFilter {
+            $Execute -eq 'powershell.exe'
+        }
+    }
+
+    It 'mantem o executavel do PowerShell 7 quando a instalacao e de sistema' {
+        Mock Get-Command { [pscustomobject]@{ Source = 'C:\Program Files\PowerShell\7\pwsh.exe' } } -ModuleName Sync
+
+        Agendar-TarefaSincronizacao
+
+        Should -Invoke New-ScheduledTaskAction -ModuleName Sync -Times 1 -ParameterFilter {
+            $Execute -eq 'C:\Program Files\PowerShell\7\pwsh.exe'
+        }
     }
 }

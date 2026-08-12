@@ -1,5 +1,5 @@
 # __navi__ · `modules/` — 10 files → symbols at exact line numbers
-<!-- navindex · 2026-07-14 · DO NOT EDIT BY HAND; regen via navindex skill -->
+<!-- navindex · 2026-08-12 · DO NOT EDIT BY HAND; regen via navindex skill -->
 ↑ repo tree: [`../__navi__.md`](../__navi__.md)
 
 - **Arquivos.psm1** (507 ln)
@@ -20,6 +20,6 @@
   <sub>L24:Get-VersionFromReleaseUrl  L36:Get-LatestPowerShellVersion  L93:Invoke-WingetInstall  L120:Install-PowerShellFromMsi  L155:Start-PowerShellInstallation  L182:Find-PwshPath  L207:Install-PowerShell7  L260:Get-InstallerInfo  L286:Menu-AtualizacaoPowerShell</sub>
 - **Rede.psm1** (452 ln)
   <sub>L27:Menu-DiagnosticoRede  L60:Test-TcpPort  L80:Testar-PortaTCP  L92:Ping-Sweep  L118:ConvertFrom-PortSpec  L137:Scan-PortasTCP  L156:Scan-ARP  L167:Descobrir-Hostnames  L196:Whois-Lookup  L206:Scan-Servicos  L219:Mostrar-Netstat  L224:Instalar-e-Testar-Speedtest  L227:Run-Ookla  L338:Menu-Rede  L364:Configurar-TcpAutoTuning  L404:Otimizar-QoS</sub>
-- **Sync.psm1** (879 ln)
+- **Sync.psm1** (883 ln)
   <sub>L55:Salvar-Diretorios  L66:Menu-GerenciamentoDiretorios  L130:Selecionar-DiretorioDaLista  L168:ObterCaminhoPasta  L189:Iniciar-Sincronizacao  L269:Resolve-ShareToDiskInfoV2  L328:VerificarEspacoEmDiscoV2  L372:Get-TamanhoPastaBytesV2  L379:Comparar-EspacoVsOrigemV2  L419:Get-RobocopyArgs  L463:Get-RobocopyStatus  L481:Resolve-RobocopyTuning  L513:ConvertTo-TamanhoLegivel  L524:Format-RobocopyResumo  L575:Get-ExclusoesPerfil  L598:Test-OrigemEhPerfil  L617:Measure-ArvoreRapido  L639:Test-ParOrigemDestino  L677:Show-RobocopyResultado  L703:Start-RobocopyUnilateralSeguro  L769:Start-RobocopyEspelho  L831:Iniciar-SincronizacaoV2  L836:Agendar-TarefaSincronizacao</sub>
 

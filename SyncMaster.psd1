@@ -58,7 +58,8 @@
         # Ativacao
         'Menu-Ativacao','Mostrar-StatusAtivacao','Instalar-ChaveProduto','Ativar-Windows','Ativar-Crack',
         # PowerShellUpdate
-        'Get-LatestPowerShellVersion','Start-PowerShellInstallation','Get-InstallerInfo','Invoke-WingetInstall','Menu-AtualizacaoPowerShell'
+        'Get-LatestPowerShellVersion','Start-PowerShellInstallation','Get-InstallerInfo','Invoke-WingetInstall',
+        'Find-PwshPath','Install-PowerShell7','Menu-AtualizacaoPowerShell'
     )
 
     AliasesToExport = @('Clear-Temp','Switch-PowerPlan','Restore-PontoRestauracao')
