@@ -24,4 +24,10 @@ Describe 'SyncMaster.psd1 (manifesto)' {
     ) {
         Get-Command $_ -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
     }
+
+    It 'nao exporta nem mantem ativador remoto' {
+        $manifest = Import-PowerShellDataFile -Path $script:Manifesto
+        $manifest.FunctionsToExport | Should -Not -Contain 'Ativar-Crack'
+        Get-Content (Join-Path $root 'modules\Ativacao.psm1') -Raw | Should -Not -Match '(?i)\bAtivar-Crack\b'
+    }
 }

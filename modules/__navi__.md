@@ -4,8 +4,8 @@
 
 - **Arquivos.psm1** (507 ln)
   <sub>L24:Remove-ToRecycleBin  L38:Menu-GerenciamentoArquivos  L53:Encontrar-ArquivosDuplicados  L57:CONFIGURAÇÕES RÁPIDAS ===================  L243:Get-FastXxHash64  L259:Get-DuplicatesByHashLocal  L449:Verificar-IntegridadeArquivos  L473:Permissoes-Pasta</sub>
-- **Ativacao.psm1** (97 ln)
-  <sub>L7:Ativar-Crack  L55:Menu-Ativacao  L75:Mostrar-StatusAtivacao  L81:Instalar-ChaveProduto  L91:Ativar-Windows</sub>
+- **Ativacao.psm1** (47 ln)
+  <sub>L7:Menu-Ativacao  L25:Mostrar-StatusAtivacao  L31:Instalar-ChaveProduto  L41:Ativar-Windows</sub>
 - **Backup.psm1** (164 ln)
   <sub>L12:Get-ZipBackupPath  L29:Invoke-ZipBackup  L49:Invoke-ZipRestore  L76:Criar-BackupZIP  L92:Restaurar-BackupZIP  L125:Clonar-Disco</sub>
 - **Core.psm1** (147 ln)
