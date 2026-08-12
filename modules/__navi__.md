@@ -12,8 +12,8 @@
   <sub>L10:Get-SyncMasterDataDir  L37:Pause-Script  L43:Confirm-Action  L53:Registrar-Log  L67:Start-SyncMasterLog  L84:Stop-SyncMasterLog  L94:Visualizar-Logs  L109:Start-SyncMaster  L121:Ensure-Dir  L133:Test-IsAdmin  L139:Require-Admin</sub>
 - **Hardware.psm1** (251 ln)
   <sub>L7:Get-CpuRapido  L17:Get-MemUsoMB  L27:Get-DiscosInfo  L41:Monitorar-Recursos  L111:Merge-DiscoFisico  L133:Diagnostico-Hardware  L187:MAPA DISCO → PARTIÇÃO → VOLUME ---  L217:Get-CpuUsageRobusto</sub>
-- **Menu.psm1** (61 ln)
-  <sub>L14:Get-MenuPrincipal  L42:Show-MenuPrincipal</sub>
+- **Menu.psm1** (60 ln)
+  <sub>L14:Get-MenuPrincipal  L41:Show-MenuPrincipal</sub>
 - **Otimizacao.psm1** (606 ln)
   <sub>L31:Pause-Local  L36:Is-ServerOS  L42:Set-DWord  L52:Backup-Registro  L78:Show-Estado  L94:Toggle-PowerPlan  L108:Clean-Temp  L152:STARTUPS (com seleção por números) =================================  L170:Get-Startups  L268:Parse-Selection  L309:Disable-StartupByNumber  L361:Enable-StartupByNumber  L412:Menu-Startups  L456:Storage-Maintenance  L501:Disk-SMART  L517:Power-CPU-Tune  L554:SearchIndexer-Toggle  L570:Tasks-Noise</sub>
 - **PowerShellUpdate.psm1** (360 ln)

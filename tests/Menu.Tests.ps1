@@ -10,13 +10,14 @@ BeforeAll {
     $launcherAst = [System.Management.Automation.Language.Parser]::ParseFile(
         (Join-Path $root 'Sync_Master.ps1'), [ref]$tokens, [ref]$errors
     )
+    $script:LauncherAst = $launcherAst
     $script:MenuAvancadoAst = $launcherAst.FindAll({
         param($node)
         $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
             $node.Name -eq 'Menu-Avancado'
     }, $true) | Select-Object -First 1
     # Acoes definidas no launcher .ps1 (nao em modulo): nao resolvem no teste; sao toleradas.
-    $script:LauncherLocais = @('Menu-Otimizacao','Executor','Criar-App')
+    $script:LauncherLocais = @('Menu-Otimizacao','Criar-App')
 }
 
 Describe 'Get-MenuPrincipal (tabela)' {
@@ -41,7 +42,7 @@ Describe 'Get-MenuPrincipal (tabela)' {
 
     It 'cobre os Ids esperados' {
         $ids = $script:Entradas.Id
-        foreach ($req in '1','5','10','15','ZZ','APP','Q') { $ids | Should -Contain $req }
+        foreach ($req in '1','5','10','15','APP','Q') { $ids | Should -Contain $req }
     }
 
     It 'todo Comando real (nao-sentinela, nao-local) resolve para uma funcao' {
@@ -62,5 +63,16 @@ Describe 'Menu-Avancado (seguranca)' {
     It 'nao expoe execucao livre de BCDEDIT' {
         $script:MenuAvancadoAst | Should -Not -BeNullOrEmpty
         $script:MenuAvancadoAst.Extent.Text | Should -Not -Match '(?i)\bbcdedit\b'
+    }
+}
+
+Describe 'Menu principal (codigo remoto)' {
+    It 'nao anuncia nem define o executor remoto do WinUtil' {
+        $script:Entradas.Comando | Should -Not -Contain 'Executor'
+        $executor = $script:LauncherAst.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Executor'
+        }, $true)
+        $executor.Count | Should -Be 0
     }
 }

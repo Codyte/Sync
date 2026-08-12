@@ -4,7 +4,7 @@
     Antes: um 'switch' gigante com 18 ramos hardcoded no launcher (texto + dispatch juntos).
     Agora: Get-MenuPrincipal devolve uma TABELA de entradas (dado puro, testavel) e
     Show-MenuPrincipal so RENDERIZA. O DISPATCH continua no launcher (& $entry.Comando),
-    porque algumas acoes (Menu-Otimizacao, Executor, Criar-App) sao definidas no proprio
+    porque algumas acoes (Menu-Otimizacao, Criar-App) sao definidas no proprio
     Sync_Master.ps1 e nao sao visiveis de dentro de um modulo.
 
     Sentinelas de Comando: '__SAIR__' encerra o loop. Demais valores = nome de funcao a invocar.
@@ -33,7 +33,6 @@ function Get-MenuPrincipal {
         [PSCustomObject]@{ Id='12';  Texto='Gerenciar Permissões de Pasta';                        Comando='Permissoes-Pasta';             Cor='Gray'   }
         [PSCustomObject]@{ Id='13';  Texto='Diagnostico de Rede';                                  Comando='Menu-DiagnosticoRede';         Cor='Gray'   }
         [PSCustomObject]@{ Id='15';  Texto='Menu de Atualização do PowerShell';                    Comando='Menu-AtualizacaoPowerShell';   Cor='Gray'   }
-        [PSCustomObject]@{ Id='ZZ';  Texto='Módulo GUI MicroWin (WinUtil)';                        Comando='Executor';                     Cor='Red'    }
         [PSCustomObject]@{ Id='APP'; Texto='Criar Aplicativo de Script';                           Comando='Criar-App';                    Cor='Red'    }
         [PSCustomObject]@{ Id='Q';   Texto='Sair';                                                 Comando='__SAIR__';                     Cor='Gray'   }
     )

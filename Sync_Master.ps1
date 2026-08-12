@@ -1,32 +1,31 @@
 ﻿# ====================== BEGIN NAV INDEX ======================
 # NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
-#   L40    PARTE 1: BLOCO DE PARÂMETROS ÚNICO ---
-#   L58    New-SyncMasterRelaunchArguments
-#   L84    Start-SyncMasterInPowerShell7
-#   L110   PARTE 1.1: Relançamento automático em PowerShell 7+ (compatível PS 5)
-#   L153   PARTE 2: REGIÃO CENTRALIZADA DE FUNÇÕES ---
-#   L228   Menu-Otimizacao
-#   L262   Criar-PontoRestauracao
-#   L347   Restaurar-PontoRestauracao
-#   L482   Menu-LimpezaDisco
-#   L510   Configurar-ServicoDefrag
-#   L614   Utilitários robustos ===============================================
-#   L635   Menu-ReparoSistema
-#   L664   Get-PowerPlans
-#   L685   Criar-PlanoDeEnergia
-#   L701   Menu-CriarPlanoEnergia
-#   L722   Menu-OtimizacaoAvancada
-#   L809   Menu-Desempenho
-#   L874   Menu-GerenciarAgentes
-#   L912   Gerenciar-ServicoDeAgente
-#   L962   Menu-Ferramentas
-#   L988   Menu-Avancado
-#   L1014  Gerenciar-EstadosOciososProcessador
-#   L1057  Utilitário: enviar arquivo para a Lixeira (PS 5/7) ---
-#   L1092  Criar-App
-#   L1155  Executor
-#   L1229  Aliases de verbo aprovado (retrocompat) ---
-#   L1238  PARTE 3: LÓGICA DE EXECUÇÃO PRINCIPAL ---
+#   L39    PARTE 1: BLOCO DE PARÂMETROS ÚNICO ---
+#   L57    New-SyncMasterRelaunchArguments
+#   L83    Start-SyncMasterInPowerShell7
+#   L109   PARTE 1.1: Relançamento automático em PowerShell 7+ (compatível PS 5)
+#   L152   PARTE 2: REGIÃO CENTRALIZADA DE FUNÇÕES ---
+#   L227   Menu-Otimizacao
+#   L261   Criar-PontoRestauracao
+#   L346   Restaurar-PontoRestauracao
+#   L481   Menu-LimpezaDisco
+#   L509   Configurar-ServicoDefrag
+#   L613   Utilitários robustos ===============================================
+#   L634   Menu-ReparoSistema
+#   L663   Get-PowerPlans
+#   L684   Criar-PlanoDeEnergia
+#   L700   Menu-CriarPlanoEnergia
+#   L721   Menu-OtimizacaoAvancada
+#   L808   Menu-Desempenho
+#   L873   Menu-GerenciarAgentes
+#   L911   Gerenciar-ServicoDeAgente
+#   L961   Menu-Ferramentas
+#   L987   Menu-Avancado
+#   L1013  Gerenciar-EstadosOciososProcessador
+#   L1056  Utilitário: enviar arquivo para a Lixeira (PS 5/7) ---
+#   L1091  Criar-App
+#   L1151  Aliases de verbo aprovado (retrocompat) ---
+#   L1160  PARTE 3: LÓGICA DE EXECUÇÃO PRINCIPAL ---
 # ======================= END NAV INDEX =======================
 
 # ===================================================================
@@ -1149,83 +1148,6 @@ function Criar-App {
 
 
 
-#region Funções da GUI (MicroWin / Coop / WinUtil)
-# TODAS as funções e a lógica do bloco "Coop" e "Executor" estão contidas aqui.
-# A função 'Executor' serve como o ponto de entrada para toda a interface gráfica.
-function Executor {
-<#
-.SYNOPSIS
-    Baixa e executa o WinUtil (Chris Titus Tech) com verificacao de integridade.
-.DESCRIPTION
-    Em vez de baixar-e-executar as cegas, baixa o script para uma string, calcula e
-    exibe o SHA256, e (se informado) compara com um hash esperado, abortando se nao bater.
-.PARAMETER Url
-    URL do WinUtil. Default https://christitus.com/win.
-.PARAMETER ExpectedSha256
-    Hash SHA256 esperado (pin opcional). Tambem pode vir de env WINUTIL_EXPECTED_SHA256.
-    Se fornecido e nao corresponder, a execucao e abortada.
-.EXAMPLE
-    Executor -ExpectedSha256 'abc123...'   # so executa se o conteudo casar com o hash
-#>
-    # WinUtil (Chris Titus Tech) e carregado remoto via irm. Antes era um embed
-    # de ~16k linhas (v25.06.27); ver historico git para aquela versao pinada.
-    #
-    # ENDURECIMENTO (supply-chain): em vez de baixar-e-executar as cegas, o
-    # script agora (1) baixa o conteudo para uma string, (2) calcula o SHA256 e
-    # mostra antes de rodar, (3) se um hash esperado for fornecido (parametro
-    # -ExpectedSha256 ou env WINUTIL_EXPECTED_SHA256), ABORTA quando nao bate.
-    param(
-        [string]$Url = 'https://christitus.com/win',
-        [string]$ExpectedSha256 = $env:WINUTIL_EXPECTED_SHA256
-    )
-    Write-Host "Isto baixa e EXECUTA o WinUtil (Chris Titus Tech) de $Url." -ForegroundColor Yellow
-    Write-Host "Requer internet e privilegios de administrador." -ForegroundColor Yellow
-
-    # 1) Baixa para string (nao executa ainda)
-    try {
-        $script = Invoke-RestMethod -Uri $Url -ErrorAction Stop
-    } catch {
-        Write-Warning "Falha ao baixar o WinUtil: $($_.Exception.Message)"
-        Pause-Script
-        return
-    }
-    if ([string]::IsNullOrWhiteSpace($script)) {
-        Write-Warning "Conteudo baixado vazio. Abortando."
-        Pause-Script
-        return
-    }
-
-    # 2) Calcula SHA256 do conteudo baixado
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes($script)
-    $sha   = [System.Security.Cryptography.SHA256]::Create()
-    try   { $hash = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-','').ToLowerInvariant() }
-    finally { $sha.Dispose() }   # SHA256::Create() e' IDisposable
-    Write-Host ("Tamanho: {0:N0} bytes | SHA256: {1}" -f $bytes.Length, $hash) -ForegroundColor Cyan
-
-    # 3) Pin opcional: se um hash esperado foi informado, exige correspondencia
-    if ($ExpectedSha256) {
-        if ($hash -ne $ExpectedSha256.Trim().ToLowerInvariant()) {
-            Write-Warning "SHA256 NAO corresponde ao esperado. Esperado: $ExpectedSha256. ABORTANDO por seguranca."
-            Pause-Script
-            return
-        }
-        Write-Host "SHA256 confere com o esperado." -ForegroundColor Green
-    }
-
-    if (-not (Confirm-Action -Prompt "Executar o WinUtil com o SHA256 acima ?")) {
-        Write-Host "Cancelado." -ForegroundColor DarkGray
-        Pause-Script
-        return
-    }
-    try {
-        & ([scriptblock]::Create($script))
-    } catch {
-        Write-Warning "Falha ao executar o WinUtil: $($_.Exception.Message)"
-    }
-    Pause-Script
-}
-
-
 # --- Aliases de verbo aprovado (retrocompat) ---
 # As funcoes seguem com nome PT (o lint do projeto ignora PSUseApprovedVerbs de proposito);
 # estes aliases so melhoram a descoberta no console (Get-Command New-*, Show-*, Restore-*).
@@ -1331,7 +1253,7 @@ switch ($Acao.ToUpper()) {
             exit
         }
         # Menu data-driven (Fase C): a tabela vem de Get-MenuPrincipal (modules\Menu.psm1).
-        # O dispatch fica AQUI (escopo do launcher) porque acoes como Menu-Otimizacao/Executor/
+        # O dispatch fica AQUI (escopo do launcher) porque acoes como Menu-Otimizacao/
         # Criar-App sao definidas neste .ps1 e nao seriam visiveis de dentro de um modulo.
         $entradas = Get-MenuPrincipal
         do {
