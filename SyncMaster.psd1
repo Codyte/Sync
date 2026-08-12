@@ -45,7 +45,7 @@
         'Comparar-EspacoVsOrigemV2','Get-RobocopyArgs','Get-RobocopyStatus','Resolve-RobocopyTuning','Measure-ArvoreRapido','ConvertTo-TamanhoLegivel','Format-RobocopyResumo','Show-RobocopyResultado','Get-ExclusoesPerfil','Test-OrigemEhPerfil','Test-ParOrigemDestino',
         'Start-RobocopyUnilateralSeguro','Start-RobocopyEspelho','Iniciar-SincronizacaoV2','Agendar-TarefaSincronizacao',
         # Backup
-        'Get-ZipBackupPath','Invoke-ZipBackup','Invoke-ZipRestore','Criar-BackupZIP','Restaurar-BackupZIP','Clonar-Disco',
+        'Get-ZipBackupPath','Invoke-ZipBackup','Invoke-ZipRestore','Criar-BackupZIP','Restaurar-BackupZIP',
         # Arquivos
         'Remove-ToRecycleBin','Menu-GerenciamentoArquivos','Encontrar-ArquivosDuplicados',
         'Verificar-IntegridadeArquivos','Permissoes-Pasta',

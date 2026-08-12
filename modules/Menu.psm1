@@ -32,7 +32,6 @@ function Get-MenuPrincipal {
         [PSCustomObject]@{ Id='11';  Texto='Diagnóstico de Hardware/Sistema';                      Comando='Diagnostico-Hardware';         Cor='Gray'   }
         [PSCustomObject]@{ Id='12';  Texto='Gerenciar Permissões de Pasta';                        Comando='Permissoes-Pasta';             Cor='Gray'   }
         [PSCustomObject]@{ Id='13';  Texto='Diagnostico de Rede';                                  Comando='Menu-DiagnosticoRede';         Cor='Gray'   }
-        [PSCustomObject]@{ Id='14';  Texto='Clonar Pendrive/Disco (BÁSICO)';                       Comando='Clonar-Disco';                 Cor='Gray'   }
         [PSCustomObject]@{ Id='15';  Texto='Menu de Atualização do PowerShell';                    Comando='Menu-AtualizacaoPowerShell';   Cor='Gray'   }
         [PSCustomObject]@{ Id='ZZ';  Texto='Módulo GUI MicroWin (WinUtil)';                        Comando='Executor';                     Cor='Red'    }
         [PSCustomObject]@{ Id='APP'; Texto='Criar Aplicativo de Script';                           Comando='Criar-App';                    Cor='Red'    }

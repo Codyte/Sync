@@ -30,4 +30,11 @@ Describe 'SyncMaster.psd1 (manifesto)' {
         $manifest.FunctionsToExport | Should -Not -Contain 'Ativar-Crack'
         Get-Content (Join-Path $root 'modules\Ativacao.psm1') -Raw | Should -Not -Match '(?i)\bAtivar-Crack\b'
     }
+
+    It 'nao exporta nem anuncia clonagem bruta por dd' {
+        $manifest = Import-PowerShellDataFile -Path $script:Manifesto
+        $manifest.FunctionsToExport | Should -Not -Contain 'Clonar-Disco'
+        Get-Content (Join-Path $root 'modules\Backup.psm1') -Raw | Should -Not -Match '(?i)\bClonar-Disco\b'
+        (Get-MenuPrincipal).Comando | Should -Not -Contain 'Clonar-Disco'
+    }
 }

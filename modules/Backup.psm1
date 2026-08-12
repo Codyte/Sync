@@ -122,43 +122,4 @@ function Restaurar-BackupZIP {
     Pause-Script
 }
 
-function Clonar-Disco {
-    $origem  = (Read-Host "Letra do disco ORIGEM (ex: E:)").Trim()
-    $destino = (Read-Host "Letra do disco DESTINO (ex: F:)").Trim()
-    # Valida que e' MESMO uma letra de disco ("E" ou "E:"): vai cru num -Command elevado,
-    # entao texto livre seria injecao de comando E geraria device path \\.\... invalido.
-    if ($origem  -notmatch '^[A-Za-z]:?$') { Write-Warning "Origem inválida: informe uma letra de disco (ex.: E:)."; Pause-Script; return }
-    if ($destino -notmatch '^[A-Za-z]:?$') { Write-Warning "Destino inválido: informe uma letra de disco (ex.: F:)."; Pause-Script; return }
-    $origem  = $origem.Substring(0,1).ToUpper()  + ':'
-    $destino = $destino.Substring(0,1).ToUpper() + ':'
-    if ($origem -eq $destino) { Write-Warning "Origem e destino não podem ser iguais!"; Pause-Script; return }
-    # 'dd' NAO existe no Windows por padrao — sem isto a clonagem falha com erro criptico.
-    if (-not (Get-Command dd -ErrorAction SilentlyContinue)) {
-        Write-Warning "Ferramenta 'dd' não encontrada no PATH. Instale o 'dd for Windows' (ex.: chocolatey 'dd', ou GnuWin) e tente novamente."
-        Pause-Script
-        return
-    }
-    $confirm = Confirm-Action "AVISO: Todos os dados do disco DESTINO ($destino) serão APAGADOS! Continuar?"
-    if ($confirm) {
-        Write-Host "Iniciando clonagem (esta operação pode demorar e não mostra barra de progresso)..." -ForegroundColor Yellow
-        # bs=1M (sufixo padrao do dd). O 'exit $LASTEXITCODE' no filho propaga o codigo do dd
-        # p/ o $proc.ExitCode aqui — sem isto o try/catch so via falha do Start-Process e
-        # "Clonagem finalizada!" mentia mesmo com dd falhando (disco errado, I/O, etc.).
-        $cmd = "dd if=\\.\$origem of=\\.\$destino bs=1M; exit `$LASTEXITCODE"
-        try {
-            $proc = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -WindowStyle Hidden -Command `"$cmd`"" -Verb RunAs -Wait -PassThru
-            if ($proc.ExitCode -eq 0) {
-                Write-Host "Clonagem finalizada!" -ForegroundColor Green
-                Registrar-Log "Clonagem de $origem para $destino (rc=0)"
-            } else {
-                Write-Warning ("dd retornou código {0} — clonagem possivelmente NÃO concluída. Confira as letras de disco e tente novamente." -f $proc.ExitCode)
-                Registrar-Log "Clonagem de $origem para $destino FALHOU (rc=$($proc.ExitCode))"
-            }
-        } catch {
-            Write-Warning "Erro ao clonar disco: $($_.Exception.Message)"
-        }
-    }
-    Pause-Script
-}
-
-Export-ModuleMember -Function Get-ZipBackupPath, Invoke-ZipBackup, Invoke-ZipRestore, Criar-BackupZIP, Restaurar-BackupZIP, Clonar-Disco
+Export-ModuleMember -Function Get-ZipBackupPath, Invoke-ZipBackup, Invoke-ZipRestore, Criar-BackupZIP, Restaurar-BackupZIP
