@@ -32,6 +32,7 @@ if ($PSCmdlet -and -not $PSCmdlet.ShouldProcess($installDir, 'Instalar ou atuali
 $remoteCommit = $CommitId
 if (-not $ArchivePath -and -not $remoteCommit) {
     try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         $remoteCommit = (Invoke-RestMethod -Uri 'https://api.github.com/repos/Codyte/Sync/commits/master' -UseBasicParsing).sha
     } catch {
         Write-Warning 'Nao foi possivel verificar a versao; baixando a versao atual.'
@@ -59,7 +60,6 @@ try {
     New-Item -ItemType Directory -Path $workDir -Force | Out-Null
     if (-not $ArchivePath) {
         Write-Host 'Baixando Sync Master do GitHub...' -ForegroundColor Cyan
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         $archiveUrl = if ($remoteCommit) { "https://github.com/Codyte/Sync/archive/$remoteCommit.zip" } else { 'https://github.com/Codyte/Sync/archive/refs/heads/master.zip' }
         Invoke-WebRequest -Uri $archiveUrl -OutFile $zipPath -UseBasicParsing
     }
