@@ -28,24 +28,35 @@ O Sync Master reúne rotinas administrativas e de engenharia em um menu único. 
 
 ## Início rápido
 
-### 1. Obtenha o projeto
+Escolha uma das duas formas abaixo.
 
-Baixe o ZIP pelo GitHub e extraia todos os arquivos ou use Git:
+### Opção 1 — clonar com Git
 
 ```powershell
 git clone https://github.com/Codyte/Sync.git
 Set-Location .\Sync
-```
-
-### 2. Execute
-
-Clique duas vezes em **`Sync Master.cmd`** ou execute:
-
-```powershell
 & '.\Sync Master.cmd'
 ```
 
-O launcher abre o menu como administrador e, quando possível, relança automaticamente no PowerShell 7.
+Depois, você também pode iniciar o programa clicando duas vezes em **`Sync Master.cmd`**.
+
+### Opção 2 — instalar e executar com IRM
+
+```powershell
+irm https://raw.githubusercontent.com/Codyte/Sync/master/install.ps1 | iex
+```
+
+Esse comando baixa o repositório oficial, instala em `%LOCALAPPDATA%\SyncMaster\App` e abre o launcher. Executá-lo novamente atualiza os arquivos do aplicativo sem apagar configurações e logs.
+
+> [!CAUTION]
+> `irm ... | iex` executa imediatamente o conteúdo recebido da internet. Se preferir inspecionar o instalador antes, use a forma em duas etapas:
+
+```powershell
+irm https://raw.githubusercontent.com/Codyte/Sync/master/install.ps1 -OutFile $env:TEMP\SyncMaster-install.ps1
+& $env:TEMP\SyncMaster-install.ps1
+```
+
+Nos dois métodos, o launcher abre o menu como administrador e, quando possível, relança automaticamente no PowerShell 7.
 
 ## PowerShell 7
 
@@ -134,6 +145,7 @@ Cada execução interativa tenta criar um transcript em `Logs\sessao_AAAA-MM-DD_
 
 ```text
 Sync/
+├── install.ps1                  # bootstrap para instalação via IRM
 ├── Sync Master.cmd              # entrada para duplo clique
 ├── Sync_Master.ps1              # launcher e menu principal
 ├── SyncMaster.psd1              # manifesto do módulo

@@ -1,8 +1,9 @@
-# __navi__ · `tests/` — 9 files → symbols at exact line numbers
+# __navi__ · `tests/` — 10 files → symbols at exact line numbers
 <!-- navindex · 2026-08-12 · DO NOT EDIT BY HAND; regen via navindex skill -->
 ↑ repo tree: [`../__navi__.md`](../__navi__.md)
 
 - **Backup.Tests.ps1** (62 ln)
+- **Bootstrap.Tests.ps1** (44 ln)
 - **Hardware.Tests.ps1** (44 ln)
 - **Manifest.Tests.ps1** (27 ln)
 - **Menu.Tests.ps1** (50 ln)
