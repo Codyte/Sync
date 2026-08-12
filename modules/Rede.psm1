@@ -13,9 +13,9 @@
 #   L219   Mostrar-Netstat
 #   L224   Instalar-e-Testar-Speedtest
 #   L227   Run-Ookla
-#   L338   Menu-Rede
-#   L364   Configurar-TcpAutoTuning
-#   L404   Otimizar-QoS
+#   L283   Menu-Rede
+#   L309   Configurar-TcpAutoTuning
+#   L349   Otimizar-QoS
 # ======================= END NAV INDEX =======================
 
 <#
@@ -255,83 +255,28 @@ function Instalar-e-Testar-Speedtest {
     # 1) Preferir o executável oficial (se já existir em PATH)
     if (Run-Ookla) { Pause-Script; return }
 
-    # 2) Tentar módulos PowerShell (instalar/ importar e detectar comando exportado)
-    $modCands = @('Speedtest-cli','SpeedtestCLI','Speedtest','posh-speedtest')
-    $cmdCands = @('Get-SpeedTest','Invoke-Speedtest','Start-Speedtest','Test-Speedtest','Measure-Speedtest')
-
-    $modLoaded = $false
-    foreach ($m in $modCands) {
-        try {
-            if (-not (Get-Module -Name $m)) {
-                if (-not (Get-Module -ListAvailable -Name $m)) {
-                    Write-Host "Instalando módulo $m da PSGallery..." -ForegroundColor Yellow
-                    Install-Module -Name $m -Force -Scope CurrentUser -Repository PSGallery -AllowClobber -ErrorAction Stop
-                }
-                Import-Module $m -Force -ErrorAction Stop
-            }
-            $modLoaded = $true
-            break
-        } catch {
-            Write-Verbose ("Falha ao carregar {0}: {1}" -f $m, $_.Exception.Message)
-        }
-    }
-
-    if ($modLoaded) {
-        # Descobre o comando exportado e executa
-        $cmd = $null
-        foreach ($c in $cmdCands) {
-            $gc = Get-Command $c -ErrorAction SilentlyContinue
-            if ($gc) { $cmd = $gc.Name; break }
-        }
-
-        if ($cmd) {
-            try {
-                if ($cmd -eq 'Get-SpeedTest' -and (Get-Command Get-SpeedTestServer -ErrorAction SilentlyContinue)) {
-                    $server = Get-SpeedTestServer -Top 1
-                    $res = & $cmd -Server $server 2>$null
-                } else {
-                    $res = & $cmd 2>$null
-                }
-
-                if ($res) {
-                    # Tenta normalizar saída em tabela; se for objeto simples, imprime direto
-                    try {
-                        $res | Format-Table -AutoSize
-                    } catch {
-                        $res | Write-Output
-                    }
-                    Pause-Script
-                    return
-                } else {
-                    Write-Warning "Módulo carregado, mas o comando '$cmd' não retornou resultados."
-                }
-            } catch {
-                Write-Warning "Erro ao executar '$cmd': $($_.Exception.Message)"
-            }
-        } else {
-            Write-Warning "Módulo importado, porém nenhum comando conhecido de speedtest foi encontrado."
-        }
-    } else {
-        Write-Host "Nenhum módulo de speedtest pôde ser instalado/carregado." -ForegroundColor Yellow
-    }
-
-    # 3) Último recurso: instalar a CLI oficial via winget e executar
+    # 2) Instalar somente a CLI oficial, com consentimento explícito
     $winget = Get-Command winget -ErrorAction SilentlyContinue
-    if ($winget) {
-        try {
-            Write-Host "Instalando Ookla Speedtest CLI via winget..." -ForegroundColor Yellow
-            & $winget install --id Ookla.Speedtest.CLI --source winget --silent --accept-source-agreements --accept-package-agreements
-            # Tenta novamente com a CLI
-            if (Run-Ookla) { Pause-Script; return }
-        } catch {
-            Write-Warning "Falha no winget: $($_.Exception.Message)"
-        }
-    } else {
-        Write-Host "winget indisponível neste host." -ForegroundColor Yellow
+    if (-not $winget) {
+        Write-Warning "Speedtest CLI não está instalado e o winget não está disponível."
+        Pause-Script
+        return
     }
-
-    Write-Warning "Não foi possível executar o teste de velocidade (nenhum método funcionou)."
-    Write-Host "Dicas: execute como administrador, verifique proxy/firewall, e garanta acesso à PSGallery/winget."
+    if (-not (Confirm-Action "Instalar a CLI oficial Ookla.Speedtest.CLI via winget?")) {
+        Write-Host "Instalação cancelada." -ForegroundColor DarkGray
+        Pause-Script
+        return
+    }
+    try {
+        & $winget.Source install --id Ookla.Speedtest.CLI --exact --source winget --silent --accept-source-agreements --accept-package-agreements
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "winget retornou código $LASTEXITCODE; a CLI não foi instalada."
+        } elseif (-not (Run-Ookla)) {
+            Write-Warning "CLI instalada, mas ainda não foi localizada. Reabra o Sync Master e tente novamente."
+        }
+    } catch {
+        Write-Warning "Falha no winget: $($_.Exception.Message)"
+    }
     Pause-Script
 }
 

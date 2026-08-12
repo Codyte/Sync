@@ -6,6 +6,15 @@ BeforeAll {
     $root = Split-Path $PSScriptRoot -Parent
     Import-Module (Join-Path $root 'modules\Core.psm1') -Force -DisableNameChecking
     Import-Module (Join-Path $root 'modules\Rede.psm1') -Force -DisableNameChecking
+    $tokens = $null; $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+        (Join-Path $root 'modules\Rede.psm1'), [ref]$tokens, [ref]$errors
+    )
+    $script:SpeedtestAst = $ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -eq 'Instalar-e-Testar-Speedtest'
+    }, $true) | Select-Object -First 1
 }
 
 Describe 'ConvertFrom-PortSpec' {
@@ -29,5 +38,16 @@ Describe 'ConvertFrom-PortSpec' {
     }
     It 'string vazia -> nenhuma porta' {
         (ConvertFrom-PortSpec -Spec '').Count | Should -Be 0
+    }
+}
+
+Describe 'Instalar-e-Testar-Speedtest (cadeia de confianca)' {
+    It 'nao instala modulos arbitrarios da PSGallery' {
+        $script:SpeedtestAst | Should -Not -BeNullOrEmpty
+        $script:SpeedtestAst.Extent.Text | Should -Not -Match '(?i)\bInstall-Module\b'
+    }
+
+    It 'exige confirmacao antes de instalar a CLI oficial' {
+        $script:SpeedtestAst.Extent.Text | Should -Match '(?is)Confirm-Action.+Ookla\.Speedtest\.CLI'
     }
 }
