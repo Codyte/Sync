@@ -17,12 +17,12 @@
 #   L575   Get-ExclusoesPerfil
 #   L598   Test-OrigemEhPerfil
 #   L615   Measure-ArvoreRapido
-#   L637   Test-ParOrigemDestino
-#   L675   Show-RobocopyResultado
-#   L701   Start-RobocopyUnilateralSeguro
-#   L767   Start-RobocopyEspelho
-#   L829   Iniciar-SincronizacaoV2
-#   L834   Agendar-TarefaSincronizacao
+#   L639   Test-ParOrigemDestino
+#   L677   Show-RobocopyResultado
+#   L703   Start-RobocopyUnilateralSeguro
+#   L769   Start-RobocopyEspelho
+#   L831   Iniciar-SincronizacaoV2
+#   L836   Agendar-TarefaSincronizacao
 # ======================= END NAV INDEX =======================
 
 <#
@@ -623,13 +623,15 @@ function Measure-ArvoreRapido {
     [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory=$true)][string]$Path,
-        [int]$LimiteArquivos = 20000
+        [ValidateRange(1,2147483646)][int]$LimiteArquivos = 20000
     )
     $count = 0; $total = [int64]0; $max = [int64]0; $trunc = $false
-    foreach ($f in (Get-ChildItem -LiteralPath $Path -Recurse -File -Force -ErrorAction SilentlyContinue)) {
+    $amostra = @(Get-ChildItem -LiteralPath $Path -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Select-Object -First ($LimiteArquivos + 1))
+    foreach ($f in $amostra) {
+        if ($count -ge $LimiteArquivos) { $trunc = $true; break }
         $count++; $len = [int64]$f.Length; $total += $len
         if ($len -gt $max) { $max = $len }
-        if ($count -ge $LimiteArquivos) { $trunc = $true; break }
     }
     [pscustomobject]@{ FileCount = $count; TotalBytes = $total; MaxFileBytes = $max; Truncado = $trunc }
 }

@@ -202,6 +202,14 @@ Describe 'Measure-ArvoreRapido' {
         $m.FileCount | Should -Be 1
         $m.Truncado | Should -BeTrue
     }
+    It 'nao marca Truncado quando o total e exatamente o limite' {
+        $d = Join-Path $TestDrive 'medida-exata'
+        New-Item -ItemType Directory -Path $d -Force | Out-Null
+        Set-Content -Path (Join-Path $d 'unico.txt') -Value 'x'
+        $m = Measure-ArvoreRapido -Path $d -LimiteArquivos 1
+        $m.FileCount | Should -Be 1
+        $m.Truncado | Should -BeFalse
+    }
 }
 
 Describe 'ConvertTo-TamanhoLegivel' {
