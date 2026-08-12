@@ -10,7 +10,7 @@ Create-SyncMasterFlowShortcut.ps1(118)  Create-SyncMasterShortcut.ps1(73)  Insta
 Arquivos.psm1(507)  Ativacao.psm1(97)  Backup.psm1(164)  Core.psm1(147)  Hardware.psm1(251)  Menu.psm1(62)  Otimizacao.psm1(606)  PowerShellUpdate.psm1(360)  Rede.psm1(452)  Sync.psm1(883)
 
 ## `tests/` (10 files) → __navi__.md
-Backup.Tests.ps1(62)  Bootstrap.Tests.ps1(104)  Hardware.Tests.ps1(44)  Manifest.Tests.ps1(27)  Menu.Tests.ps1(50)  ModuleLoading.Tests.ps1(27)  Otimizacao.Tests.ps1(285)  PowerShellUpdate.Tests.ps1(127)  Rede.Tests.ps1(33)  Sync.Tests.ps1(364)
+Backup.Tests.ps1(62)  Bootstrap.Tests.ps1(104)  Hardware.Tests.ps1(44)  Manifest.Tests.ps1(27)  Menu.Tests.ps1(50)  ModuleLoading.Tests.ps1(27)  Otimizacao.Tests.ps1(314)  PowerShellUpdate.Tests.ps1(127)  Rede.Tests.ps1(33)  Sync.Tests.ps1(364)
 
 ## `tools/` (2 files)
 Install-GitHooks.ps1(30)  Run-Checks.ps1(52)

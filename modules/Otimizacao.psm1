@@ -45,15 +45,15 @@ function Pause-Local { Pause-Script }
             try { Backup-Registro; $script:RegBackupDone = $true }
             catch { Write-Warning "Backup automático do Registro falhou: $($_.Exception.Message)" }
         }
-        New-Item -Path $Path -Force | Out-Null
-        New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType DWord -Force | Out-Null
+        New-Item -Path $Path -Force -ErrorAction Stop | Out-Null
+        New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType DWord -Force -ErrorAction Stop | Out-Null
         Registrar-Log ("Set-DWord {0}\{1} = {2}" -f $Path, $Name, $Value)
     }
     function Backup-Registro {
         Require-Admin
         $date = Get-Date -Format "yyyyMMdd_HHmmss"
         $dir  = Join-Path $env:USERPROFILE "Desktop\RegBackup_$date"
-        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        New-Item -ItemType Directory -Path $dir -Force -ErrorAction Stop | Out-Null
         # reg.exe e nativo: exit != 0 NAO lanca, entao checamos $LASTEXITCODE por chave.
         # Algumas chaves (ex.: policy DataCollection) podem nem existir num host nao gerenciado;
         # acumulamos as falhas e avisamos em vez de fingir backup completo (Set-DWord confia nisto).

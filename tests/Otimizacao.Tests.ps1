@@ -1,6 +1,10 @@
-﻿# Pester 5 — testes das funcoes PURAS do Sync Master.
+﻿# ====================== BEGIN NAV INDEX ======================
+# NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
+# ======================= END NAV INDEX =======================
+
+# Pester 5 — testes puros e mocks de efeitos externos do Sync Master.
 # Rodar:  Invoke-Pester -Path .\tests
-# Alvos: Parse-Selection (Otimizacao.psm1) e Ensure-Dir (Core.psm1).
+# Alvos: Otimizacao.psm1 e helpers de diretorio/log de Core.psm1.
 
 BeforeAll {
     $root = Split-Path $PSScriptRoot -Parent
@@ -29,6 +33,35 @@ Describe 'Parse-Selection' {
     }
     It 'combina intervalo + solto: "5-7,10"' {
         (Parse-Selection -Selection '5-7,10' -Max 12) -join ',' | Should -Be '5,6,7,10'
+    }
+}
+
+Describe 'Escritas e backup do Registro reportam falhas reais' {
+    It 'usa erros terminantes e so registra Set-DWord apos as escritas' {
+        & (Get-Module Otimizacao) { $script:RegBackupDone = $true }
+        Mock New-Item {} -ModuleName Otimizacao
+        Mock New-ItemProperty {} -ModuleName Otimizacao
+        Mock Registrar-Log {} -ModuleName Otimizacao
+
+        Set-DWord -Path 'HKLM:\Teste' -Name 'Valor' -Value 1
+
+        Should -Invoke New-Item -ModuleName Otimizacao -Times 1 -ParameterFilter { $ErrorAction -eq 'Stop' }
+        Should -Invoke New-ItemProperty -ModuleName Otimizacao -Times 1 -ParameterFilter { $ErrorAction -eq 'Stop' }
+        Should -Invoke Registrar-Log -ModuleName Otimizacao -Times 1
+    }
+
+    It 'cria a pasta do backup com erro terminante' {
+        Mock Require-Admin {} -ModuleName Otimizacao
+        Mock New-Item {} -ModuleName Otimizacao
+        Mock 'reg' { $global:LASTEXITCODE = 0 } -ModuleName Otimizacao
+        Mock Registrar-Log {} -ModuleName Otimizacao
+        Mock Write-Host {} -ModuleName Otimizacao
+
+        Backup-Registro
+
+        Should -Invoke New-Item -ModuleName Otimizacao -Times 1 -ParameterFilter {
+            $ItemType -eq 'Directory' -and $ErrorAction -eq 'Stop'
+        }
     }
 }
 
