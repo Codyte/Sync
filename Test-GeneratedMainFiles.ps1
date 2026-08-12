@@ -35,22 +35,27 @@ function Require-MainByFunction([string]$base,[string]$functionName){
 $p1 = Require-MainByFunction -base $menuRoot -functionName 'Invoke-FlowAction-MenuLimpezaDisco-Op-1'
 $t1 = Get-Content -Path $p1 -Raw
 if($t1 -notmatch 'function\s+Invoke-FlowAction-MenuLimpezaDisco-Op-1'){ throw "Missing wrapper function in $p1" }
-if($t1 -notmatch 'Write-Host\s+"Iniciando Limpeza de Disco'){ throw "Missing expected Write-Host in $p1" }
-if($t1 -notmatch 'Start-Process\s+"cleanmgr\.exe"'){ throw "Missing cleanmgr call in $p1" }
+if($t1 -notmatch '\bClean-Temp\b'){ throw "Missing Clean-Temp call in $p1" }
 if($t1 -notmatch 'Pause-Script'){ throw "Missing Pause-Script in $p1" }
 if($t1 -match "(?m)^\s*'Write-Host"){ throw "Quoted code found in $p1" }
 if($t1 -match '(?m)^\s*@"' -or $t1 -match "(?m)^\s*@'"){ throw "Here-string found in $p1" }
 
-$p2 = Require-MainByFunction -base $menuRoot -functionName 'Invoke-FlowAction-MenuLimpezaDisco-Op-2'
+$p2 = Require-MainByFunction -base $menuRoot -functionName 'Storage-Maintenance'
 $t2 = Get-Content -Path $p2 -Raw
-if($t2 -notmatch 'Start-Process\s+"dfrgui\.exe"'){ throw "Missing dfrgui in $p2" }
+if($t2 -notmatch 'function\s+Storage-Maintenance'){ throw "Missing Storage-Maintenance function in $p2" }
 
 $p3 = Require-MainByFunction -base $menuRoot -functionName 'Invoke-FlowAction-MenuDesempenho-Op-1'
 $t3 = Get-Content -Path $p3 -Raw
-if($t3 -notmatch 'Start-Process\s+"taskmgr\.exe"'){ throw "Missing taskmgr in $p3" }
+if($t3 -notmatch '\bGet-PerformanceSnapshot\b' -or $t3 -notmatch '\bSave-PerformanceSnapshot\b'){
+  throw "Missing measured performance snapshot calls in $p3"
+}
 
-$p4 = Require-MainByFunction -base $menuRoot -functionName 'Invoke-FlowAction-MenuDesempenho-Op-6'
+$p4 = Require-MainByFunction -base $menuRoot -functionName 'Invoke-FlowAction-MenuDesempenho-Op-3'
 $t4 = Get-Content -Path $p4 -Raw
-if($t4 -notmatch 'Start-Process\s+"ms-settings:display-advancedgraphics"'){ throw "Missing advanced graphics settings call in $p4" }
+if($t4 -notmatch '\bMenu-Startups\b'){ throw "Missing Menu-Startups call in $p4" }
+
+$p5 = Require-MainByFunction -base $menuRoot -functionName 'Invoke-FlowAction-MenuDesempenho-Op-8'
+$t5 = Get-Content -Path $p5 -Raw
+if($t5 -notmatch 'Start-Process\s+"ms-settings:display-advancedgraphics"'){ throw "Missing advanced graphics settings call in $p5" }
 
 Write-Host "TEST-GENERATED-MAIN-FILES PASS"

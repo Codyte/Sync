@@ -36,9 +36,11 @@
         # Menu (data-driven, Fase C)
         'Get-MenuPrincipal','Show-MenuPrincipal',
         # Otimizacao
-        'Pause-Local','Is-ServerOS','Set-DWord','Backup-Registro','Show-Estado','Toggle-PowerPlan',
-        'Clean-Temp','Get-Startups','Parse-Selection','Disable-StartupByNumber','Enable-StartupByNumber',
-        'Menu-Startups','Storage-Maintenance','Disk-SMART','Power-CPU-Tune','SearchIndexer-Toggle','Tasks-Noise',
+        'Pause-Local','Clean-Temp','Get-Startups','Parse-Selection','Disable-StartupByNumber','Enable-StartupByNumber',
+        'Menu-Startups','Get-PerformanceSnapshot','Save-PerformanceSnapshot','Compare-PerformanceSnapshot',
+        'Compare-LatestPerformanceSnapshots','Get-PageFileStatus','New-PowerReport','Invoke-DefenderQuickScan',
+        'Invoke-DefenderPerformanceAnalysis','Menu-DefenderPerformance','Invoke-StorageOptimization',
+        'Storage-Maintenance','Set-PowerPlan','Power-CPU-Tune',
         # Sync
         'Salvar-Diretorios','Menu-GerenciamentoDiretorios','Selecionar-DiretorioDaLista','ObterCaminhoPasta',
         'Iniciar-Sincronizacao','Resolve-ShareToDiskInfoV2','VerificarEspacoEmDiscoV2','Get-TamanhoPastaBytesV2',
@@ -62,7 +64,7 @@
         'Find-PwshPath','Install-PowerShell7','Menu-AtualizacaoPowerShell'
     )
 
-    AliasesToExport = @('Clear-Temp','Switch-PowerPlan','Restore-PontoRestauracao')
+    AliasesToExport = @('Clear-Temp','Restore-PontoRestauracao')
     CmdletsToExport = @()
     VariablesToExport = @()
 }

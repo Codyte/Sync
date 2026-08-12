@@ -6,33 +6,33 @@
 #   L121   ConvertTo-SafeLiteral
 #   L122   Normalize-MenuTitle
 #   L134   Get-ExpressionStringValue
-#   L147   Get-CommandStringLiteralValue
-#   L170   ConvertTo-Slug
-#   L185   Format-OrderPrefix
-#   L187   New-DirectorySafe
-#   L188   Write-FileSafe
-#   L206   Backup-OutputIfExists
-#   L217   Get-AstParentFunctionName
-#   L218   Test-MenuKey
-#   L219   Get-SwitchClauseKeys
-#   L234   Test-IsMenuSwitch
-#   L243   Get-CommandCallsFromAst
-#   L257   Get-FirstScriptFunctionCall
-#   L258   Get-FunctionCallsFromAst
-#   L259   Get-CaseCommands
-#   L270   Get-MenuTargetFromClause
-#   L278   New-ActionWrapperName
-#   L285   Get-MenuTitlesForSwitch
-#   L354   Write-NodeMetadata
-#   L373   Write-Manifest
-#   L386   Add-ReportItem
-#   L388   Initialize-SourceIndex
-#   L402   Write-Main
-#   L429   Export-FunctionCallChildren
-#   L444   Export-FunctionSubtree
-#   L450   Export-MenuSwitchChildren
-#   L504   Export-RootMenu
-#   L513   Write-Reports
+#   L150   Get-CommandStringLiteralValue
+#   L173   ConvertTo-Slug
+#   L188   Format-OrderPrefix
+#   L190   New-DirectorySafe
+#   L191   Write-FileSafe
+#   L209   Backup-OutputIfExists
+#   L220   Get-AstParentFunctionName
+#   L221   Test-MenuKey
+#   L222   Get-SwitchClauseKeys
+#   L237   Test-IsMenuSwitch
+#   L246   Get-CommandCallsFromAst
+#   L260   Get-FirstScriptFunctionCall
+#   L261   Get-FunctionCallsFromAst
+#   L262   Get-CaseCommands
+#   L273   Get-MenuTargetFromClause
+#   L281   New-ActionWrapperName
+#   L288   Get-MenuTitlesForSwitch
+#   L357   Write-NodeMetadata
+#   L376   Write-Manifest
+#   L389   Add-ReportItem
+#   L391   Initialize-SourceIndex
+#   L430   Write-Main
+#   L457   Export-FunctionCallChildren
+#   L472   Export-FunctionSubtree
+#   L478   Export-MenuSwitchChildren
+#   L532   Export-RootMenu
+#   L591   Write-Reports
 # ======================= END NAV INDEX =======================
 
 # ====================== BEGIN NAV INDEX ======================
@@ -142,6 +142,9 @@ function Get-ExpressionStringValue {
     }
     if ($AstNode -is [System.Management.Automation.Language.CommandExpressionAst]) { return Get-ExpressionStringValue -AstNode $AstNode.Expression }
     if ($AstNode -is [System.Management.Automation.Language.ParenExpressionAst]) { return Get-ExpressionStringValue -AstNode $AstNode.Pipeline }
+    if ($AstNode -is [System.Management.Automation.Language.PipelineAst] -and $AstNode.PipelineElements.Count -eq 1) {
+        return Get-ExpressionStringValue -AstNode $AstNode.PipelineElements[0]
+    }
     return $null
 }
 function Get-CommandStringLiteralValue {
@@ -392,10 +395,35 @@ function Initialize-SourceIndex {
     $ast=[System.Management.Automation.Language.Parser]::ParseFile($script:SourceFullPath,[ref]$tokens,[ref]$errors)
     $script:RootAst = $ast
     if($errors -and @($errors).Count -gt 0){ foreach($e in @($errors)){ [void]$script:ManualReview.Add("Parse warning line $($e.Extent.StartLineNumber): $($e.Message)") } }
-    $functions=$ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst]},$true)
-    foreach($fn in $functions){ if(-not $script:FunctionMap.ContainsKey($fn.Name)){ $script:FunctionMap[$fn.Name]=$fn; [void]$script:IndexFunctions.Add([pscustomobject]@{name=$fn.Name;start_line=$fn.Extent.StartLineNumber;end_line=$fn.Extent.EndLineNumber}) } }
-    $switches=$ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.SwitchStatementAst]},$true)
-    foreach($sw in $switches){ if(-not (Test-IsMenuSwitch $sw)){continue}; $owner=Get-AstParentFunctionName $sw; if([string]::IsNullOrWhiteSpace($owner)){$owner='__ROOT__'}; if(-not $script:MenuSwitchesByOwner.ContainsKey($owner)){ $script:MenuSwitchesByOwner[$owner]=New-Object System.Collections.Generic.List[object]}; [void]$script:MenuSwitchesByOwner[$owner].Add($sw); [void]$script:DetectedMenus.Add([pscustomobject]@{owner=$owner;line=$sw.Extent.StartLineNumber;keys=(Get-SwitchClauseKeys $sw)}) }
+    $sources=@([pscustomobject]@{Path=$script:SourceFullPath;Ast=$ast})
+    $moduleDirectory=Join-Path (Split-Path $script:SourceFullPath -Parent) 'modules'
+    if(Test-Path -LiteralPath $moduleDirectory -PathType Container){
+      foreach($moduleFile in Get-ChildItem -LiteralPath $moduleDirectory -Filter '*.psm1' -File | Sort-Object Name){
+        $moduleTokens=$null; $moduleErrors=$null
+        $moduleAst=[System.Management.Automation.Language.Parser]::ParseFile($moduleFile.FullName,[ref]$moduleTokens,[ref]$moduleErrors)
+        if($moduleErrors -and @($moduleErrors).Count -gt 0){
+          foreach($e in @($moduleErrors)){ [void]$script:ManualReview.Add("Parse warning $($moduleFile.Name):$($e.Extent.StartLineNumber): $($e.Message)") }
+        }
+        $sources += [pscustomobject]@{Path=$moduleFile.FullName;Ast=$moduleAst}
+      }
+    }
+    foreach($source in $sources){
+      $functions=$source.Ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst]},$true)
+      foreach($fn in $functions){
+        if(-not $script:FunctionMap.ContainsKey($fn.Name)){
+          $script:FunctionMap[$fn.Name]=$fn
+          [void]$script:IndexFunctions.Add([pscustomobject]@{name=$fn.Name;source=$source.Path;start_line=$fn.Extent.StartLineNumber;end_line=$fn.Extent.EndLineNumber})
+        }
+      }
+      $switches=$source.Ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.SwitchStatementAst]},$true)
+      foreach($sw in $switches){
+        if(-not (Test-IsMenuSwitch $sw)){continue}
+        $owner=Get-AstParentFunctionName $sw; if([string]::IsNullOrWhiteSpace($owner)){$owner='__ROOT__'}
+        if(-not $script:MenuSwitchesByOwner.ContainsKey($owner)){ $script:MenuSwitchesByOwner[$owner]=New-Object System.Collections.Generic.List[object]}
+        [void]$script:MenuSwitchesByOwner[$owner].Add($sw)
+        [void]$script:DetectedMenus.Add([pscustomobject]@{owner=$owner;source=$source.Path;line=$sw.Extent.StartLineNumber;keys=(Get-SwitchClauseKeys $sw)})
+      }
+    }
     return $ast
 }
 
@@ -504,7 +532,57 @@ function Export-MenuSwitchChildren {
 function Export-RootMenu {
  param([string]$MenuRoot)
  New-DirectorySafe $MenuRoot
- if(-not $script:MenuSwitchesByOwner.ContainsKey('__ROOT__')){ throw 'No root menu switch detected.' }
+ if(-not $script:MenuSwitchesByOwner.ContainsKey('__ROOT__')){
+  $menuModule = Join-Path (Split-Path $script:SourceFullPath -Parent) 'modules\Menu.psm1'
+  if(-not (Test-Path -LiteralPath $menuModule -PathType Leaf)){ throw 'No root menu switch or modules\Menu.psm1 detected.' }
+  $tokens=$null; $errors=$null
+  $menuAst=[System.Management.Automation.Language.Parser]::ParseFile($menuModule,[ref]$tokens,[ref]$errors)
+  if($errors -and @($errors).Count -gt 0){ throw 'Failed to parse the data-driven menu module.' }
+  $menuFunction=$menuAst.FindAll({
+   param($n)
+   $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Get-MenuPrincipal'
+  },$true) | Select-Object -First 1
+  if(-not $menuFunction){ throw 'Get-MenuPrincipal was not found in modules\Menu.psm1.' }
+
+  $entries=@()
+  foreach($table in $menuFunction.FindAll({ param($n) $n -is [System.Management.Automation.Language.HashtableAst] },$true)){
+   $values=@{}
+   foreach($pair in $table.KeyValuePairs){
+    $name=Get-ExpressionStringValue -AstNode $pair.Item1
+    $value=Get-ExpressionStringValue -AstNode $pair.Item2
+    if($name){ $values[$name]=$value }
+   }
+   if($values.Id -and $values.Texto -and $values.Comando){
+    $entries += [pscustomobject]@{Key=$values.Id;Title=$values.Texto;Function=$values.Comando;SourceLine=$table.Extent.StartLineNumber}
+   }
+  }
+  if($entries.Count -eq 0){ throw 'Get-MenuPrincipal has no static menu entries.' }
+
+  $order=0
+  foreach($entry in $entries){
+   $order++
+   $key=[string]$entry.Key; $title=Normalize-MenuTitle ([string]$entry.Title); $target=[string]$entry.Function
+   $isReturn=($target -eq '__SAIR__')
+   $resolved=if($isReturn){'__SAIR__'}else{$target}
+   $prefix=if($key -match '^[Qq]$'){'Q'}elseif($key -eq 'APP'){'APP'}else{Format-OrderPrefix $order}
+   $folderName=if($prefix -eq 'Q'){ 'Q-' + (ConvertTo-Slug $title) }else{ "$prefix-Op-$key-" + (ConvertTo-Slug $title) }
+   $folder=Join-Path $MenuRoot $folderName
+   New-DirectorySafe $folder
+   $fnAst=$null; if($script:FunctionMap.ContainsKey($target)){$fnAst=$script:FunctionMap[$target]}
+   if($isReturn){ Write-FileSafe -Path (Join-Path $folder 'main.ps1') -Content "# Return from the data-driven root menu.`n" -Overwrite:$Force }
+   else { [void](Write-Main -Folder $folder -Fn $target -FnAst $fnAst -Clause $null -Parent '__ROOT__' -Key $key -Title $title) }
+   $type=if($isReturn){'Return'}elseif($fnAst -and $script:MenuSwitchesByOwner.ContainsKey($target)){'Menu'}else{'Action'}
+   Write-NodeMetadata -Folder $folder -Key $key -Title $title -Type $type -FunctionName $resolved -Order $order -Parent '__ROOT__' -SourceLine $entry.SourceLine -ReviewNeeded:$false
+   Write-Manifest -Folder $folder -Key $key -Title $title -FunctionName $resolved -Order $order
+   [void]$script:IndexMenuMap.Add([pscustomobject]@{menu_parent='__ROOT__';option=$key;title=$title;function=$resolved;path=$folder})
+   Add-ReportItem ([pscustomobject]@{Path=$folder;Key=$key;Title=$title;Type=$type;Function=$resolved;Parent='__ROOT__';SourceLine=$entry.SourceLine;Calls=@();OriginalCaseCommands=@();OriginalTargetKind='DataDrivenMenuEntry'})
+   if($fnAst -and $script:MenuSwitchesByOwner.ContainsKey($target)){
+    $visited=@{'__ROOT__'=$true}; $visited[$target]=$true
+    Export-FunctionSubtree -FunctionName $target -Folder $folder -Depth 2 -Visited $visited
+   }
+  }
+  return
+ }
  $root=$null; $best=-1
  foreach($sw in $script:MenuSwitchesByOwner['__ROOT__']){ $count=@(Get-SwitchClauseKeys $sw).Count; if($count -gt $best){$best=$count; $root=$sw} }
  Export-MenuSwitchChildren -SwitchAst $root -ParentFolder $MenuRoot -ParentName '__ROOT__' -Depth 1 -Visited @{'__ROOT__'=$true}
@@ -526,16 +604,8 @@ function Write-Reports {
  if ($root2) { $m += "- __ROOT__ -> 2 -> $($root2.Function)" }
  $root13 = $script:Reports | Where-Object { $_.Parent -eq '__ROOT__' -and $_.Key -eq '13' } | Select-Object -First 1
  if ($root13) { $m += "- __ROOT__ -> 13 -> $($root13.Function)" }
- $mOpt6 = $script:Reports | Where-Object { $_.Parent -eq 'Menu-Otimizacao' -and $_.Key -eq '6' } | Select-Object -First 1
- if ($mOpt6) { $m += "- Menu-Otimizacao -> 6 -> $($mOpt6.Function)" }
- $adv1 = $script:Reports | Where-Object { $_.Parent -eq 'Menu-Avancado' -and $_.Key -eq '1' } | Select-Object -First 1
- $adv2 = $script:Reports | Where-Object { $_.Parent -eq 'Menu-Avancado' -and $_.Key -eq '2' } | Select-Object -First 1
- $adv3 = $script:Reports | Where-Object { $_.Parent -eq 'Menu-Avancado' -and $_.Key -eq '3' } | Select-Object -First 1
- $advQ = $script:Reports | Where-Object { $_.Parent -eq 'Menu-Avancado' -and ($_.Key -eq 'Q' -or $_.Key -eq 'q') } | Select-Object -First 1
- if ($adv1) { $m += "- Menu-Avancado -> 1 -> $($adv1.Title)" }
- if ($adv2) { $m += "- Menu-Avancado -> 2 -> $($adv2.Title)" }
- if ($adv3) { $m += "- Menu-Avancado -> 3 -> $($adv3.Title)" }
- if ($advQ) { $m += "- Menu-Avancado -> Q -> $($advQ.Title)" }
+ $mOpt3 = $script:Reports | Where-Object { $_.Parent -eq 'Menu-Otimizacao' -and $_.Key -eq '3' } | Select-Object -First 1
+ if ($mOpt3) { $m += "- Menu-Otimizacao -> 3 -> $($mOpt3.Function)" }
  $nr1 = $script:Reports | Where-Object { $_.Parent -eq 'Menu-DiagnosticoRede' -and $_.Key -eq '1' } | Select-Object -First 1
  $nr2 = $script:Reports | Where-Object { $_.Parent -eq 'Menu-DiagnosticoRede' -and $_.Key -eq '2' } | Select-Object -First 1
  $nr3 = $script:Reports | Where-Object { $_.Parent -eq 'Menu-DiagnosticoRede' -and $_.Key -eq '3' } | Select-Object -First 1

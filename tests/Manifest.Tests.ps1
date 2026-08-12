@@ -1,4 +1,8 @@
-﻿# Pester 5 — Fase A: manifesto SyncMaster.psd1.
+﻿# ====================== BEGIN NAV INDEX ======================
+# NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
+# ======================= END NAV INDEX =======================
+
+# Pester 5 — Fase A: manifesto SyncMaster.psd1.
 # Rodar:  Invoke-Pester -Path .\tests
 # Garante que o ponto de entrada unico carrega Core + dominios e exporta as funcoes-chave.
 
@@ -42,5 +46,16 @@ Describe 'SyncMaster.psd1 (manifesto)' {
         $manifest = Import-PowerShellDataFile -Path $script:Manifesto
         $manifest.FunctionsToExport | Should -Not -Contain 'Otimizar-QoS'
         Get-Content (Join-Path $root 'modules\Rede.psm1') -Raw | Should -Not -Match '(?i)\bOtimizar-QoS\b'
+    }
+
+    It 'exporta apenas as rotinas uteis da area de otimizacao' {
+        $manifest = Import-PowerShellDataFile -Path $script:Manifesto
+        foreach ($nome in 'Get-PerformanceSnapshot','Compare-PerformanceSnapshot','New-PowerReport',
+            'Invoke-DefenderQuickScan','Invoke-StorageOptimization','Set-PowerPlan','Clean-Temp','Menu-Startups') {
+            $manifest.FunctionsToExport | Should -Contain $nome
+        }
+        foreach ($nome in 'Set-DWord','Tasks-Noise','SearchIndexer-Toggle','Disk-SMART','Toggle-PowerPlan') {
+            $manifest.FunctionsToExport | Should -Not -Contain $nome
+        }
     }
 }

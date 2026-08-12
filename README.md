@@ -18,9 +18,9 @@ O Sync Master reúne rotinas administrativas e de engenharia em um menu único. 
 | Área | Recursos principais |
 |---|---|
 | Sincronização | Simulação, cópia unilateral segura, espelhamento, exclusões de perfil e agendamento |
-| Backup | Criação e restauração de ZIP, além de clonagem básica de disco |
+| Backup | Criação e restauração segura de arquivos ZIP |
 | Arquivos | Duplicados, hashes, integridade e permissões |
-| Sistema | Limpeza, reparo, inicialização, energia, armazenamento e serviços |
+| Sistema | Medição antes/depois, limpeza, inicialização, energia, armazenamento, Defender e reparo |
 | Hardware | CPU, memória, discos, SMART e monitoramento em tempo real |
 | Rede | Ping, portas TCP, ARP, DNS, netstat, Whois e teste de velocidade |
 | PowerShell | Detecção, instalação e atualização do PowerShell 7 |
@@ -103,7 +103,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\Sync_Master.ps1 `
 O modo automatizado não abre prompts e pode ser usado pelo Agendador de Tarefas.
 
 > [!WARNING]
-> O modo `Bilateral` executa espelhamento nos dois sentidos. Espelhamento e clonagem podem excluir dados no destino. Faça uma simulação ou backup antes de usá-los.
+> O modo `Bilateral` executa espelhamento nos dois sentidos e pode excluir dados no destino. Faça uma simulação ou backup antes de usá-lo.
 
 ### Instalação como módulo
 
@@ -134,17 +134,31 @@ Configurações, backups auxiliares e logs ficam fora do repositório:
 %LOCALAPPDATA%\SyncMaster\
 ├── Logs\
 ├── Backups\
+├── Reports\Performance\
 └── diretorios.json
 ```
 
 Cada execução interativa tenta criar um transcript em `Logs\sessao_AAAA-MM-DD_HH-mm-ss.log`. Para diagnóstico em outra máquina, envie o transcript mais recente junto com uma captura do erro.
+
+O menu de desempenho salva snapshots JSON em `Reports\Performance`. Compare dois estados coletados em condições semelhantes para verificar o efeito real de uma mudança. CPU e memória variam com a carga; um único valor isolado não prova ganho.
+
+As ações de desempenho usam mecanismos documentados do Windows: gerenciamento reversível de inicialização, `Optimize-Volume`, planos nativos do `powercfg`, relatórios de energia/bateria, Quick Scan e analisador de desempenho do Microsoft Defender. Atualizações, Sensor de Armazenamento, apps em segundo plano, efeitos visuais e GPU são abertos nas configurações oficiais para decisão do usuário; o Sync Master não instala atualizações, remove apps, cria exclusões do Defender nem altera automaticamente o arquivo de paginação.
+
+Documentação de referência:
+
+- [Dicas da Microsoft para melhorar o desempenho do Windows](https://support.microsoft.com/pt-BR/Windows/Experience/performance-optimization/tips-to-improve-pc-performance-in-windows)
+- [`Optimize-Volume`](https://learn.microsoft.com/en-us/powershell/module/storage/optimize-volume)
+- [`powercfg` e seus relatórios](https://learn.microsoft.com/en-us/windows-hardware/design/device-experiences/powercfg-command-line-options)
+- [Analisador de desempenho do Microsoft Defender](https://learn.microsoft.com/en-us/defender-endpoint/performance-analyzer-reference)
+- [Esquema oficial `ms-settings:`](https://learn.microsoft.com/en-us/windows/apps/develop/launch/launch-settings)
+- [Funcionamento do arquivo de paginação](https://learn.microsoft.com/pt-br/troubleshoot/windows-client/performance/introduction-to-the-page-file)
 
 ## Segurança
 
 - O MSI baixado pelo bootstrap só é executado quando possui assinatura Authenticode válida da Microsoft.
 - Ações destrutivas importantes exigem confirmação no modo interativo.
 - O modo de sincronização unilateral não usa `/MIR`.
-- Algumas opções destacadas em vermelho baixam conteúdo remoto de terceiros. O endereço, tamanho e SHA-256 são mostrados antes da confirmação; revise a origem antes de autorizar.
+- Downloads automáticos ficam limitados ao instalador do próprio projeto, aos canais oficiais do PowerShell e, com confirmação, ao pacote exato `Ookla.Speedtest.CLI` via WinGet.
 - Não execute o projeto a partir de um ZIP sem extrair todos os arquivos.
 
 ## Estrutura do projeto

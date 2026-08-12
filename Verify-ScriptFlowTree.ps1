@@ -17,7 +17,7 @@ $badQuotes = $flow | Where-Object { (N $_.Title) -match '"$' }
 if($badQuotes){ throw "Found titles ending with quote." }
 
 # ---------------------------------------------------------------------------
-# Path 2 -> 6 validation (approved)
+# Path 2 validation (approved)
 # ---------------------------------------------------------------------------
 $root2 = $flow | Where-Object { $_.Parent -eq '__ROOT__' -and $_.Key -eq '2' } | Select-Object -First 1
 if($null -eq $root2){ throw 'Missing root option 2' }
@@ -27,23 +27,9 @@ if((N $root2.Type) -ne 'Menu'){ throw "Root 2 type mismatch: '$($root2.Type)'" }
 
 $opt6 = $flow | Where-Object { $_.Parent -eq 'Menu-Otimizacao' -and $_.Key -eq '6' } | Select-Object -First 1
 if($null -eq $opt6){ throw 'Missing Menu-Otimizacao option 6' }
-if((N $opt6.Function) -ne 'Menu-Avancado'){ throw "Menu-Otimizacao key 6 function mismatch: '$($opt6.Function)'" }
-if((N $opt6.Title) -like 'Opcao *'){ throw "Fallback title in Menu-Otimizacao key=6: $($opt6.Title)" }
-
-$advExpected = @(
-  @{ Key='1'; Title='Ajustar Cache do Sistema de Arquivos' },
-  @{ Key='2'; Title='Gerenciar Estados Ociosos do Processador' },
-  @{ Key='3'; Title='Ajustes de Timer do Sistema' },
-  @{ Key='Q'; Title='Voltar' }
-)
-$advItems = $flow | Where-Object { $_.Parent -eq 'Menu-Avancado' }
-foreach($e in $advExpected){
-  $item = $advItems | Where-Object { (N $_.Key).ToUpper() -eq (N $e.Key).ToUpper() } | Select-Object -First 1
-  if($null -eq $item){ throw "Missing Menu-Avancado option: $($e.Key)" }
-  if((N $item.Title) -like 'Opcao *'){ throw "Fallback title in Menu-Avancado key=$($e.Key): $($item.Title)" }
-  if((N $item.Title) -match '"$'){ throw "Trailing quote in Menu-Avancado key=$($e.Key): $($item.Title)" }
-  if($e.Key -eq 'Q' -and (N $item.Type) -ne 'Return'){ throw "Type mismatch in Menu-Avancado key=Q: got '$($item.Type)' expected 'Return'" }
-  if($e.Key -ne 'Q' -and [string]::IsNullOrWhiteSpace((N $item.Function))){ throw "Missing function in Menu-Avancado key=$($e.Key)" }
+if((N $opt6.Function) -ne 'Menu-GerenciarAgentes'){ throw "Menu-Otimizacao key 6 function mismatch: '$($opt6.Function)'" }
+if($flow | Where-Object { $_.Parent -eq 'Menu-Avancado' -or $_.Function -eq 'Menu-Avancado' }){
+  throw 'Removed advanced optimization menu is still present in the flow.'
 }
 
 # ---------------------------------------------------------------------------
@@ -85,8 +71,6 @@ $forbiddenChecks = @(
   @{ Parent='Menu-LimpezaDisco'; Key='1' },
   @{ Parent='Menu-LimpezaDisco'; Key='2' },
   @{ Parent='Menu-LimpezaDisco'; Key='3' },
-  @{ Parent='Menu-LimpezaDisco'; Key='5' },
-  @{ Parent='Configurar-ServicoDefrag'; Key='1' },
   @{ Parent='Menu-Rede'; Key='1' },
   @{ Parent='Menu-Rede'; Key='5' }
 )
@@ -94,7 +78,7 @@ foreach($c in $forbiddenChecks){
   $it = $flow | Where-Object { $_.Parent -eq $c.Parent -and $_.Key -eq $c.Key } | Select-Object -First 1
   if($null -eq $it){ continue }
   if($blockedTargets -contains (N $it.Function)){ throw "Forbidden helper target at $($c.Parent) key=$($c.Key): $($it.Function)" }
-  if((N $it.Function) -notlike 'Invoke-FlowAction-*'){ throw "Expected wrapper at $($c.Parent) key=$($c.Key), got '$($it.Function)'" }
+  if((N $it.Function) -eq 'TODO-Unresolved'){ throw "Unresolved target at $($c.Parent) key=$($c.Key)" }
 }
 
 $menuRoot = Join-Path $OutputRoot 'menu'

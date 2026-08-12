@@ -39,7 +39,7 @@ pwsh -ExecutionPolicy Bypass -File .\Verify-ScriptFlowTree.ps1 \
 - `SyncMaster-Flow/_index/menu-map.json`: menu option mapping index.
 
 ## Validated Navigation Paths
-- `__ROOT__ -> 2 -> Menu-Otimizacao -> 6 -> Menu-Avancado`
+- `__ROOT__ -> 2 -> Menu-Otimizacao -> 3 -> Menu-Desempenho`
 - `__ROOT__ -> 13 -> Menu-DiagnosticoRede`
 
 ## Expected Remaining Items (`manual-review.md`)

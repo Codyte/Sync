@@ -1,4 +1,8 @@
-﻿# Pester 5 — Fase C: menu principal data-driven (modules\Menu.psm1).
+﻿# ====================== BEGIN NAV INDEX ======================
+# NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
+# ======================= END NAV INDEX =======================
+
+# Pester 5 — Fase C: menu principal data-driven (modules\Menu.psm1).
 # Rodar:  Invoke-Pester -Path .\tests
 # Get-MenuPrincipal e dado puro -> da' para validar integridade da tabela sem UI.
 
@@ -11,11 +15,8 @@ BeforeAll {
         (Join-Path $root 'Sync_Master.ps1'), [ref]$tokens, [ref]$errors
     )
     $script:LauncherAst = $launcherAst
-    $script:MenuAvancadoAst = $launcherAst.FindAll({
-        param($node)
-        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
-            $node.Name -eq 'Menu-Avancado'
-    }, $true) | Select-Object -First 1
+    $script:LauncherText = Get-Content (Join-Path $root 'Sync_Master.ps1') -Raw
+    $script:OtimizacaoText = Get-Content (Join-Path $root 'modules\Otimizacao.psm1') -Raw
     # Acoes definidas no launcher .ps1 (nao em modulo): nao resolvem no teste; sao toleradas.
     $script:LauncherLocais = @('Menu-Otimizacao','Criar-App')
 }
@@ -59,10 +60,31 @@ Describe 'Show-MenuPrincipal (render)' {
     }
 }
 
-Describe 'Menu-Avancado (seguranca)' {
-    It 'nao expoe execucao livre de BCDEDIT' {
-        $script:MenuAvancadoAst | Should -Not -BeNullOrEmpty
-        $script:MenuAvancadoAst.Extent.Text | Should -Not -Match '(?i)\bbcdedit\b'
+Describe 'Otimizacao (seguranca e utilidade)' {
+    It 'nao mantem tweaks perigosos ou sem beneficio geral' {
+        $codigo = $script:LauncherText + $script:OtimizacaoText
+        $codigo | Should -Not -Match '(?i)DisablePagingExecutive|LargeSystemCache|AllowTelemetry'
+        $codigo | Should -Not -Match '(?i)PROCTHROTTLEMIN|IDLEDISABLE|behavior\s+set\s+memoryusage'
+        $codigo | Should -Not -Match '(?i)Disable-ScheduledTask|Stop-Service\s+WSearch'
+        $codigo | Should -Not -Match '(?i)(Add|Set)-MpPreference[^\r\n]*Exclusion'
+    }
+
+    It 'nao expoe mais os menus avancados removidos' {
+        $funcoes = $script:LauncherAst.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -in @('Menu-Avancado','Menu-OtimizacaoAvancada','Gerenciar-EstadosOciososProcessador')
+        }, $true)
+        $funcoes.Count | Should -Be 0
+    }
+
+    It 'mede antes/depois e expoe somente acoes documentadas no menu de desempenho' {
+        $script:LauncherText | Should -Match '\bGet-PerformanceSnapshot\b'
+        $script:LauncherText | Should -Match '\bCompare-LatestPerformanceSnapshots\b'
+        $script:LauncherText | Should -Match '\bInvoke-DefenderQuickScan\b|\bMenu-DefenderPerformance\b'
+        $script:LauncherText | Should -Match 'ms-settings:windowsupdate'
+        $script:LauncherText | Should -Match 'ms-settings:storagepolicies'
+        $script:LauncherText | Should -Match 'ms-settings:privacy-backgroundapps'
     }
 }
 

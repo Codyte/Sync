@@ -36,35 +36,6 @@ Describe 'Parse-Selection' {
     }
 }
 
-Describe 'Escritas e backup do Registro reportam falhas reais' {
-    It 'usa erros terminantes e so registra Set-DWord apos as escritas' {
-        & (Get-Module Otimizacao) { $script:RegBackupDone = $true }
-        Mock New-Item {} -ModuleName Otimizacao
-        Mock New-ItemProperty {} -ModuleName Otimizacao
-        Mock Registrar-Log {} -ModuleName Otimizacao
-
-        Set-DWord -Path 'HKLM:\Teste' -Name 'Valor' -Value 1
-
-        Should -Invoke New-Item -ModuleName Otimizacao -Times 1 -ParameterFilter { $ErrorAction -eq 'Stop' }
-        Should -Invoke New-ItemProperty -ModuleName Otimizacao -Times 1 -ParameterFilter { $ErrorAction -eq 'Stop' }
-        Should -Invoke Registrar-Log -ModuleName Otimizacao -Times 1
-    }
-
-    It 'cria a pasta do backup com erro terminante' {
-        Mock Require-Admin {} -ModuleName Otimizacao
-        Mock New-Item {} -ModuleName Otimizacao
-        Mock 'reg' { $global:LASTEXITCODE = 0 } -ModuleName Otimizacao
-        Mock Registrar-Log {} -ModuleName Otimizacao
-        Mock Write-Host {} -ModuleName Otimizacao
-
-        Backup-Registro
-
-        Should -Invoke New-Item -ModuleName Otimizacao -Times 1 -ParameterFilter {
-            $ItemType -eq 'Directory' -and $ErrorAction -eq 'Stop'
-        }
-    }
-}
-
 Describe 'Clean-Temp limita a remocao a diretorios temporarios seguros' {
     BeforeEach {
         Mock Require-Admin {} -ModuleName Otimizacao
@@ -112,6 +83,248 @@ Describe 'Clean-Temp limita a remocao a diretorios temporarios seguros' {
         } finally {
             $env:TEMP = $oldTemp; $env:WINDIR = $oldWindir
         }
+    }
+
+    It 'registra falha real quando o DISM retorna codigo nao zero' {
+        $oldTemp = $env:TEMP; $oldWindir = $env:WINDIR
+        try {
+            $env:TEMP = $null; $env:WINDIR = $null
+            Mock 'Dism.exe' { $global:LASTEXITCODE = 5 } -ModuleName Otimizacao
+
+            Clean-Temp
+
+            Should -Invoke Write-Warning -ModuleName Otimizacao -ParameterFilter { $Message -match 'código 5' }
+            Should -Invoke Registrar-Log -ModuleName Otimizacao -Times 1 -ParameterFilter { $msg -match 'DISM=Falha\(5\)' }
+        } finally {
+            $env:TEMP = $oldTemp; $env:WINDIR = $oldWindir
+        }
+    }
+}
+
+Describe 'Otimizacao nativa de armazenamento' {
+    BeforeEach {
+        Mock Require-Admin {} -ModuleName Otimizacao
+        Mock Get-Volume {
+            @(
+                [pscustomobject]@{ DriveType = 'Fixed'; DriveLetter = 'C' },
+                [pscustomobject]@{ DriveType = 'Removable'; DriveLetter = 'E' }
+            )
+        } -ModuleName Otimizacao
+        Mock Optimize-Volume {} -ModuleName Otimizacao
+        Mock Registrar-Log {} -ModuleName Otimizacao
+        Mock Write-Host {} -ModuleName Otimizacao
+        Mock Write-Warning {} -ModuleName Otimizacao
+    }
+
+    It 'deixa o Windows escolher TRIM ou desfragmentacao conforme o volume' {
+        Invoke-StorageOptimization -Mode Optimize | Should -BeTrue
+
+        Should -Invoke Optimize-Volume -ModuleName Otimizacao -Times 1 -ParameterFilter {
+            $DriveLetter -eq 'C' -and -not $Analyze -and -not $ReTrim -and -not $Defrag -and $ErrorAction -eq 'Stop'
+        }
+    }
+
+    It 'analisa sem modificar quando solicitado' {
+        Invoke-StorageOptimization -Mode Analyze | Should -BeTrue
+
+        Should -Invoke Optimize-Volume -ModuleName Otimizacao -Times 1 -ParameterFilter {
+            $DriveLetter -eq 'C' -and $Analyze -and $ErrorAction -eq 'Stop'
+        }
+    }
+
+    It 'nao anuncia sucesso total quando um volume falha' {
+        Mock Optimize-Volume { throw 'falha de volume' } -ModuleName Otimizacao
+
+        Invoke-StorageOptimization -Mode Optimize | Should -BeFalse
+        Should -Invoke Write-Warning -ModuleName Otimizacao -ParameterFilter { $Message -match '1 volume' }
+    }
+}
+
+Describe 'Planos de energia conservadores e verificaveis' {
+    BeforeEach {
+        Mock powercfg { $global:LASTEXITCODE = 0 } -ModuleName Otimizacao
+        Mock Registrar-Log {} -ModuleName Otimizacao
+        Mock Write-Host {} -ModuleName Otimizacao
+        Mock Write-Warning {} -ModuleName Otimizacao
+    }
+
+    It 'aplica Equilibrado como plano recomendado' {
+        Set-PowerPlan -Plan Balanced | Should -BeTrue
+
+        Should -Invoke powercfg -ModuleName Otimizacao -Times 1 -ParameterFilter {
+            $args -contains 'SCHEME_BALANCED'
+        }
+        Should -Invoke Registrar-Log -ModuleName Otimizacao -Times 1
+    }
+
+    It 'nao registra sucesso quando powercfg falha' {
+        Mock powercfg { $global:LASTEXITCODE = 9 } -ModuleName Otimizacao
+
+        Set-PowerPlan -Plan HighPerformance | Should -BeFalse
+
+        Should -Invoke Registrar-Log -ModuleName Otimizacao -Times 0
+        Should -Invoke Write-Warning -ModuleName Otimizacao -ParameterFilter { $Message -match 'código 9' }
+    }
+}
+
+Describe 'Medicao de desempenho antes e depois' {
+    It 'coleta somente metricas observaveis do Windows' {
+        $oldDrive = $env:SystemDrive
+        try {
+            $env:SystemDrive = 'C:'
+            Mock Get-CimInstance {
+                switch ($ClassName) {
+                    'Win32_PerfFormattedData_PerfOS_Processor' { [pscustomobject]@{ PercentProcessorTime = 25 } }
+                    'Win32_OperatingSystem' { [pscustomobject]@{ TotalVisibleMemorySize = 1000; FreePhysicalMemory = 250; LastBootUpTime = (Get-Date).AddHours(-10) } }
+                    'Win32_LogicalDisk' { [pscustomobject]@{ Size = 100GB; FreeSpace = 40GB } }
+                    'Win32_ComputerSystem' { [pscustomobject]@{ AutomaticManagedPagefile = $true } }
+                    'Win32_QuickFixEngineering' { [pscustomobject]@{ HotFixID = 'KB123'; InstalledOn = [datetime]'2026-08-01' } }
+                }
+            } -ModuleName Otimizacao
+            Mock Get-Startups { @([pscustomobject]@{ Enabled = $true }, [pscustomobject]@{ Enabled = $false }) } -ModuleName Otimizacao
+            Mock Get-Process { @([pscustomobject]@{ ProcessName = 'app'; Id = 10; WorkingSet64 = 100MB }) } -ModuleName Otimizacao
+            Mock Get-ActivePowerPlan { 'Equilibrado' } -ModuleName Otimizacao
+            Mock Get-DefenderStatus { [pscustomobject]@{ RealTimeProtectionEnabled = $true; SignatureAgeDays = 1 } } -ModuleName Otimizacao
+
+            $snapshot = Get-PerformanceSnapshot -CpuSampleCount 1
+
+            $snapshot.SchemaVersion | Should -Be 1
+            $snapshot.CpuPercent | Should -Be 25
+            $snapshot.MemoryUsedPercent | Should -Be 75
+            $snapshot.SystemDriveFreeGB | Should -Be 40
+            $snapshot.StartupEnabledCount | Should -Be 1
+            $snapshot.AutomaticManagedPageFile | Should -BeTrue
+            $snapshot.LastHotFixId | Should -Be 'KB123'
+            $snapshot.TopMemoryProcesses[0].Name | Should -Be 'app'
+        } finally { $env:SystemDrive = $oldDrive }
+    }
+
+    It 'calcula deltas sem inventar uma avaliacao subjetiva' {
+        $before = [pscustomobject]@{
+            CapturedAt = '2026-08-12T10:00:00-03:00'
+            CpuPercent = 70
+            MemoryUsedPercent = 80
+            SystemDriveFreeGB = 20
+            StartupEnabledCount = 12
+        }
+        $after = [pscustomobject]@{
+            CapturedAt = '2026-08-12T11:00:00-03:00'
+            CpuPercent = 35
+            MemoryUsedPercent = 65
+            SystemDriveFreeGB = 28.5
+            StartupEnabledCount = 8
+        }
+
+        $result = Compare-PerformanceSnapshot -Before $before -After $after
+
+        $result.CpuPercentDelta | Should -Be -35
+        $result.MemoryUsedPercentDelta | Should -Be -15
+        $result.SystemDriveFreeGBDelta | Should -Be 8.5
+        $result.StartupEnabledCountDelta | Should -Be -4
+    }
+
+    It 'preserva null quando uma metrica nao esta disponivel' {
+        $result = Compare-PerformanceSnapshot `
+            -Before ([pscustomobject]@{ CpuPercent = $null }) `
+            -After ([pscustomobject]@{ CpuPercent = 10 })
+
+        $result.CpuPercentDelta | Should -BeNullOrEmpty
+    }
+
+    It 'salva snapshot em JSON somente no diretorio de dados do Sync Master' {
+        $old = $env:SYNCMASTER_DATA_DIR
+        try {
+            $env:SYNCMASTER_DATA_DIR = Join-Path $TestDrive 'dados-performance'
+            Mock Registrar-Log {} -ModuleName Otimizacao
+            $snapshot = [pscustomobject]@{ SchemaVersion = 1; CapturedAt = '2026-08-12T10:00:00-03:00'; CpuPercent = 20 }
+
+            $path = Save-PerformanceSnapshot -Snapshot $snapshot
+
+            Test-Path -LiteralPath $path -PathType Leaf | Should -BeTrue
+            $path | Should -BeLike (Join-Path $env:SYNCMASTER_DATA_DIR 'Reports\Performance\performance_*.json')
+            (Get-Content -LiteralPath $path -Raw | ConvertFrom-Json).CpuPercent | Should -Be 20
+        } finally { $env:SYNCMASTER_DATA_DIR = $old }
+    }
+}
+
+Describe 'Diagnosticos documentados de energia e memoria virtual' {
+    BeforeEach {
+        Mock Require-Admin {} -ModuleName Otimizacao
+        Mock Registrar-Log {} -ModuleName Otimizacao
+        Mock Write-Warning {} -ModuleName Otimizacao
+    }
+
+    It 'gera relatorio de energia pelo powercfg e valida o resultado' {
+        $old = $env:SYNCMASTER_DATA_DIR
+        try {
+            $env:SYNCMASTER_DATA_DIR = Join-Path $TestDrive 'dados-energia'
+            Mock powercfg { $global:LASTEXITCODE = 0 } -ModuleName Otimizacao
+            Mock Test-Path { $true } -ModuleName Otimizacao
+
+            $path = New-PowerReport -Type Energy -DurationSeconds 30
+
+            $path | Should -BeLike '*power_energy_*.html'
+            Should -Invoke powercfg -ModuleName Otimizacao -Times 1 -ParameterFilter {
+                $args -contains '/energy' -and $args -contains '/duration' -and $args -contains 30
+            }
+        } finally { $env:SYNCMASTER_DATA_DIR = $old }
+    }
+
+    It 'nao anuncia relatorio quando powercfg falha' {
+        Mock powercfg { $global:LASTEXITCODE = 7 } -ModuleName Otimizacao
+
+        New-PowerReport -Type Battery | Should -BeNullOrEmpty
+
+        Should -Invoke Registrar-Log -ModuleName Otimizacao -Times 0
+        Should -Invoke Write-Warning -ModuleName Otimizacao -ParameterFilter { $Message -match 'codigo 7' }
+    }
+
+    It 'apenas consulta o pagefile e informa se o Windows o gerencia' {
+        Mock Get-CimInstance {
+            if ($ClassName -eq 'Win32_ComputerSystem') {
+                return [pscustomobject]@{ AutomaticManagedPagefile = $true }
+            }
+            @(
+                [pscustomobject]@{ AllocatedBaseSize = 2048; CurrentUsage = 200; PeakUsage = 500 },
+                [pscustomobject]@{ AllocatedBaseSize = 1024; CurrentUsage = 100; PeakUsage = 300 }
+            )
+        } -ModuleName Otimizacao
+
+        $status = Get-PageFileStatus
+
+        $status.AutomaticManaged | Should -BeTrue
+        $status.AllocatedMB | Should -Be 3072
+        $status.CurrentUsageMB | Should -Be 300
+        $status.PeakUsageMB | Should -Be 800
+    }
+}
+
+Describe 'Microsoft Defender sem exclusoes automaticas' {
+    BeforeEach {
+        Mock Require-Admin {} -ModuleName Otimizacao
+        Mock Registrar-Log {} -ModuleName Otimizacao
+        Mock Write-Warning {} -ModuleName Otimizacao
+    }
+
+    It 'executa somente a verificacao rapida solicitada' {
+        Mock Get-Command { [pscustomobject]@{ Name = 'Start-MpScan' } } -ModuleName Otimizacao
+        Mock Start-MpScan {} -ModuleName Otimizacao
+
+        Invoke-DefenderQuickScan -Confirm:$false | Should -BeTrue
+
+        Should -Invoke Start-MpScan -ModuleName Otimizacao -Times 1 -ParameterFilter {
+            $ScanType -eq 'QuickScan'
+        }
+    }
+
+    It 'degrada com aviso quando o Defender nao oferece o comando' {
+        Mock Get-Command { $null } -ModuleName Otimizacao
+        Mock Start-MpScan {} -ModuleName Otimizacao
+
+        Invoke-DefenderQuickScan -Confirm:$false | Should -BeFalse
+
+        Should -Invoke Start-MpScan -ModuleName Otimizacao -Times 0
+        Should -Invoke Require-Admin -ModuleName Otimizacao -Times 0
     }
 }
 

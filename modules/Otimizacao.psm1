@@ -1,111 +1,42 @@
 ﻿# ====================== BEGIN NAV INDEX ======================
 # NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
-#   L31    Pause-Local
-#   L36    Is-ServerOS
-#   L42    Set-DWord
-#   L52    Backup-Registro
-#   L78    Show-Estado
-#   L94    Toggle-PowerPlan
-#   L108   Clean-Temp
-#   L152   STARTUPS (com seleção por números) =================================
-#   L170   Get-Startups
-#   L268   Parse-Selection
-#   L309   Disable-StartupByNumber
-#   L361   Enable-StartupByNumber
-#   L412   Menu-Startups
-#   L456   Storage-Maintenance
-#   L501   Disk-SMART
-#   L517   Power-CPU-Tune
-#   L554   SearchIndexer-Toggle
-#   L570   Tasks-Noise
+#   L37    Pause-Local
+#   L39    Clean-Temp
+#   L87    STARTUPS (com seleção por números) =================================
+#   L105   Get-Startups
+#   L203   Parse-Selection
+#   L244   Disable-StartupByNumber
+#   L296   Enable-StartupByNumber
+#   L347   Menu-Startups
+#   L389   MEDICAO: observar antes/depois e guardar evidencia local ----------
+#   L390   Get-ActivePowerPlan
+#   L402   Get-DefenderStatus
+#   L423   Get-PerformanceSnapshot
+#   L522   Save-PerformanceSnapshot
+#   L534   Compare-PerformanceSnapshot
+#   L556   Compare-LatestPerformanceSnapshots
+#   L577   Get-PageFileStatus
+#   L599   New-PowerReport
+#   L631   Invoke-DefenderQuickScan
+#   L651   Invoke-DefenderPerformanceAnalysis
+#   L679   Menu-DefenderPerformance
+#   L710   ARMAZENAMENTO: Windows escolhe TRIM/Defrag pelo tipo do volume -------
+#   L711   Invoke-StorageOptimization
+#   L751   Storage-Maintenance
+#   L779   Energia: Equilibrado por padrão; Alto Desempenho apenas sob demanda --
+#   L780   Set-PowerPlan
+#   L801   Power-CPU-Tune
 # ======================= END NAV INDEX =======================
 
 <#
-    Otimizacao.psm1 — funcoes de otimizacao/desempenho avancado extraidas do
-    launcher Sync_Master.ps1 (Fase 2 do refator). Antes viviam ANINHADAS dentro de
-    Menu-OtimizacaoAvancada (escopo fragil: so existiam quando aquele menu rodava).
+    Otimizacao.psm1 — manutencao util e reversivel para Windows 10/11.
     Depende de Core.psm1 (Pause-Script, Confirm-Action, Require-Admin, Ensure-Dir).
 #>
 
 # Wrapper retrocompativel: o codigo legado chama Pause-Local; delega ao Pause-Script do Core.
 function Pause-Local { Pause-Script }
-    # ===================== UTILITÁRIOS INTERNOS ======================
-    
-    
-    
-    function Is-ServerOS {
-        # Win32_OperatingSystem.ProductType: 1=Workstation, 2=Domain Controller, 3=Server.
-        # Via CIM é instantâneo; Get-ComputerInfo (versão antiga) levava segundos.
-        try { ([int](Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).ProductType) -ne 1 }
-        catch { $false }
-    }
-    function Set-DWord($Path,$Name,$Value){
-        # Auto-backup do Registro UMA vez por sessão antes da 1ª escrita destrutiva.
-        if (-not $script:RegBackupDone) {
-            try { Backup-Registro; $script:RegBackupDone = $true }
-            catch { Write-Warning "Backup automático do Registro falhou: $($_.Exception.Message)" }
-        }
-        New-Item -Path $Path -Force -ErrorAction Stop | Out-Null
-        New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType DWord -Force -ErrorAction Stop | Out-Null
-        Registrar-Log ("Set-DWord {0}\{1} = {2}" -f $Path, $Name, $Value)
-    }
-    function Backup-Registro {
-        Require-Admin
-        $date = Get-Date -Format "yyyyMMdd_HHmmss"
-        $dir  = Join-Path $env:USERPROFILE "Desktop\RegBackup_$date"
-        New-Item -ItemType Directory -Path $dir -Force -ErrorAction Stop | Out-Null
-        # reg.exe e nativo: exit != 0 NAO lanca, entao checamos $LASTEXITCODE por chave.
-        # Algumas chaves (ex.: policy DataCollection) podem nem existir num host nao gerenciado;
-        # acumulamos as falhas e avisamos em vez de fingir backup completo (Set-DWord confia nisto).
-        $exports = @(
-            @{Key='HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management'; File='MemoryManagement.reg'},
-            @{Key='HKLM\SYSTEM\CurrentControlSet\Control\Power';                              File='Power.reg'},
-            @{Key='HKLM\SYSTEM\CurrentControlSet\Control\PriorityControl';                    File='PriorityControl.reg'},
-            @{Key='HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection';                  File='DataCollection.reg'},
-            @{Key='HKCU\Control Panel\Desktop';                                               File='Desktop.reg'}
-        )
-        $falhas = @()
-        foreach ($e in $exports) {
-            reg export $e.Key (Join-Path $dir $e.File) /y | Out-Null
-            if ($LASTEXITCODE -ne 0) { $falhas += $e.Key }
-        }
-        if ($falhas.Count) {
-            Write-Warning ("reg export falhou em {0} chave(s) (pode nao existir neste host): {1}" -f $falhas.Count, ($falhas -join '; '))
-        }
-        Write-Host ("Backup salvo em: {0}" -f $dir) -ForegroundColor Cyan
-        Registrar-Log ("Backup-Registro -> {0} (falhas: {1})" -f $dir, $falhas.Count)
-    }
-    function Show-Estado {
-        $mmPath   = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management"
-        $powPath  = "HKLM:\SYSTEM\CurrentControlSet\Control\Power"
-        $prioPath = "HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl"
-        $telPath  = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
-        $estado = [pscustomobject]@{
-            OS_Tipo                 = if (Is-ServerOS) { 'Server' } else { 'Client' }
-            DisablePagingExecutive  = (Get-ItemProperty -Path $mmPath -Name DisablePagingExecutive -ErrorAction SilentlyContinue).DisablePagingExecutive
-            LargeSystemCache        = (Get-ItemProperty -Path $mmPath -Name LargeSystemCache      -ErrorAction SilentlyContinue).LargeSystemCache
-            HibernateEnabled        = (Get-ItemProperty -Path $powPath -Name HibernateEnabled      -ErrorAction SilentlyContinue).HibernateEnabled
-            Win32PrioritySeparation = (Get-ItemProperty -Path $prioPath -Name Win32PrioritySeparation -ErrorAction SilentlyContinue).Win32PrioritySeparation
-            AllowTelemetry          = (Get-ItemProperty -Path $telPath -Name AllowTelemetry        -ErrorAction SilentlyContinue).AllowTelemetry
-            PlanoDeEnergia          = ((powercfg /getactivescheme) 2>$null)
-        }
-        $estado | Format-List
-    }
-    function Toggle-PowerPlan {
-        try {
-            $isLaptop = (Get-CimInstance -ClassName Win32_Battery -ErrorAction SilentlyContinue)
-            if ($isLaptop) {
-                powercfg -setactive SCHEME_BALANCED | Out-Null
-                Write-Host "Plano de energia: Equilibrado (notebook detectado)." -ForegroundColor Yellow
-            } else {
-                powercfg -setactive SCHEME_MIN | Out-Null
-                Write-Host "Plano de energia: Alto desempenho (desktop)." -ForegroundColor Green
-            }
-        } catch {
-            Write-Warning ("Falha ao ajustar plano: {0}" -f $_.Exception.Message)
-        }
-    }
-    function Clean-Temp {
+
+function Clean-Temp {
         Require-Admin
         $paths = @()
         if ([string]::IsNullOrWhiteSpace($env:TEMP)) {
@@ -134,20 +65,24 @@ function Pause-Local { Pause-Script }
                 Write-Warning ("Caminho temporario ignorado ({0}): {1}" -f $p,$_.Exception.Message)
             }
         }
+        $dismStatus = 'Nao executado'
         try {
             # Dism.exe e nativo: exit != 0 NAO lanca. O catch so pega Dism.exe ausente;
             # o resultado real vem do $LASTEXITCODE (senao "concluida" mentia em falha).
             Dism.exe /Online /Cleanup-Image /StartComponentCleanup | Out-Null
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "Limpeza concluída (TEMP e Component Store)." -ForegroundColor Green
+                $dismStatus = 'OK'
+                Write-Host "Temporários processados e Component Store limpo." -ForegroundColor Green
             } else {
+                $dismStatus = "Falha($LASTEXITCODE)"
                 Write-Warning ("DISM retornou código {0} — Component Store NÃO limpo (TEMP já foi limpo)." -f $LASTEXITCODE)
             }
         } catch {
+            $dismStatus = 'Falha ao iniciar'
             Write-Warning ("DISM falhou: {0}" -f $_.Exception.Message)
         }
-        Registrar-Log "Clean-Temp executado (TEMP + Component Store)"
-    }
+        Registrar-Log "Clean-Temp executado (TEMP processado; DISM=$dismStatus)"
+}
 
 # ===== STARTUPS (com seleção por números) =================================
 
@@ -261,7 +196,7 @@ function Get-Startups {
     }
 
     # Ordena: ON primeiro, depois OFF
-    $items | Sort-Object Enabled, Name
+    $items | Sort-Object @{ Expression = 'Enabled'; Descending = $true }, Name
 }
 
 # Parser de seleção: "1 2 5-7,10" (compatível PS 5/7)
@@ -451,156 +386,461 @@ function Menu-Startups {
 }
 # ========================================================================
 
+# ---------- MEDICAO: observar antes/depois e guardar evidencia local ----------
+function Get-ActivePowerPlan {
+    try {
+        $output = @(powercfg /getactivescheme 2>$null)
+        if ($LASTEXITCODE -ne 0) { return $null }
+        $text = ($output -join ' ').Trim()
+        if ($text -match '\(([^)]+)\)') { return $Matches[1] }
+        return $text
+    } catch {
+        return $null
+    }
+}
 
-    # ---------- ARMAZENAMENTO: TRIM / DEFRAG ----------
-    function Storage-Maintenance {
-        Clear-Host
-        Write-Host "--- Manutenção de Armazenamento ---" -ForegroundColor Cyan
+function Get-DefenderStatus {
+    $command = Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue
+    if (-not $command) {
+        return [pscustomobject]@{ RealTimeProtectionEnabled = $null; SignatureAgeDays = $null }
+    }
+    try {
+        $status = Get-MpComputerStatus -ErrorAction Stop
+        $age = $null
+        if ($status.AntivirusSignatureLastUpdated) {
+            $age = [Math]::Round(((Get-Date) - [datetime]$status.AntivirusSignatureLastUpdated).TotalDays, 1)
+        }
+        return [pscustomobject]@{
+            RealTimeProtectionEnabled = $status.RealTimeProtectionEnabled
+            SignatureAgeDays          = $age
+        }
+    } catch {
+        Write-Verbose ("Microsoft Defender indisponivel: {0}" -f $_.Exception.Message)
+        return [pscustomobject]@{ RealTimeProtectionEnabled = $null; SignatureAgeDays = $null }
+    }
+}
+
+function Get-PerformanceSnapshot {
+    [CmdletBinding()]
+    param(
+        [ValidateRange(1,10)][int]$CpuSampleCount = 3,
+        [ValidateRange(0,10)][int]$CpuSampleIntervalSeconds = 1
+    )
+
+    $cpuSamples = @()
+    for ($sample = 1; $sample -le $CpuSampleCount; $sample++) {
         try {
-            Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter } |
-                Format-Table DriveLetter, FileSystemLabel, FileSystem, @{N='Livre(GB)';E={[math]::Round($_.SizeRemaining/1GB,1)}}, @{N='Tamanho(GB)';E={[math]::Round($_.Size/1GB,1)}} -AutoSize
+            $cpu = Get-CimInstance -ClassName Win32_PerfFormattedData_PerfOS_Processor `
+                -Filter "Name='_Total'" -ErrorAction Stop
+            if ($null -ne $cpu.PercentProcessorTime) { $cpuSamples += [double]$cpu.PercentProcessorTime }
         } catch { Write-Verbose $_.Exception.Message }
-        Write-Host "`n1) ReTRIM em SSDs  2) Desfragmentar HDDs  3) Verificar TRIM  4) Voltar"
-        $c = Read-Host "Escolha"
-        switch ($c) {
+        if ($sample -lt $CpuSampleCount -and $CpuSampleIntervalSeconds -gt 0) {
+            Start-Sleep -Seconds $CpuSampleIntervalSeconds
+        }
+    }
+    $os = $disk = $computer = $hotfix = $null
+    try {
+        $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+    } catch { Write-Verbose $_.Exception.Message }
+    try {
+        $disk = Get-CimInstance -ClassName Win32_LogicalDisk `
+            -Filter ("DeviceID='{0}'" -f $env:SystemDrive) -ErrorAction Stop
+    } catch { Write-Verbose $_.Exception.Message }
+    try {
+        $computer = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
+    } catch { Write-Verbose $_.Exception.Message }
+    try {
+        $hotfix = Get-CimInstance -ClassName Win32_QuickFixEngineering -ErrorAction Stop |
+            Sort-Object InstalledOn -Descending | Select-Object -First 1
+    } catch { Write-Verbose $_.Exception.Message }
+
+    $memoryTotalMB = $memoryUsedMB = $memoryUsedPercent = $uptimeHours = $null
+    if ($os -and [double]$os.TotalVisibleMemorySize -gt 0) {
+        $memoryTotalMB = [Math]::Round([double]$os.TotalVisibleMemorySize / 1024, 1)
+        $memoryUsedMB = [Math]::Round(([double]$os.TotalVisibleMemorySize - [double]$os.FreePhysicalMemory) / 1024, 1)
+        $memoryUsedPercent = [Math]::Round(
+            (([double]$os.TotalVisibleMemorySize - [double]$os.FreePhysicalMemory) /
+                [double]$os.TotalVisibleMemorySize) * 100, 1)
+        if ($os.LastBootUpTime) {
+            $uptimeHours = [Math]::Round(((Get-Date) - [datetime]$os.LastBootUpTime).TotalHours, 1)
+        }
+    }
+
+    $driveSizeGB = $driveFreeGB = $driveFreePercent = $null
+    if ($disk -and [double]$disk.Size -gt 0) {
+        $driveSizeGB = [Math]::Round([double]$disk.Size / 1GB, 1)
+        $driveFreeGB = [Math]::Round([double]$disk.FreeSpace / 1GB, 1)
+        $driveFreePercent = [Math]::Round(([double]$disk.FreeSpace / [double]$disk.Size) * 100, 1)
+    }
+
+    $lastHotFixDate = $null
+    if ($hotfix -and $hotfix.InstalledOn) {
+        try { $lastHotFixDate = ([datetime]$hotfix.InstalledOn).ToString('o') }
+        catch { $lastHotFixDate = [string]$hotfix.InstalledOn }
+    }
+
+    $topProcesses = @()
+    try {
+        $topProcesses = @(Get-Process -ErrorAction Stop | Sort-Object WorkingSet64 -Descending |
+            Select-Object -First 5 | ForEach-Object {
+                [pscustomobject]@{
+                    Name        = $_.ProcessName
+                    Id          = $_.Id
+                    WorkingSetMB = [Math]::Round([double]$_.WorkingSet64 / 1MB, 1)
+                }
+            })
+    } catch { Write-Verbose $_.Exception.Message }
+
+    $defender = Get-DefenderStatus
+    [pscustomobject]@{
+        SchemaVersion                 = 1
+        CapturedAt                    = (Get-Date).ToString('o')
+        ComputerName                  = $env:COMPUTERNAME
+        CpuPercent                    = if ($cpuSamples.Count -gt 0) {
+            [Math]::Round([double](($cpuSamples | Measure-Object -Average).Average), 1)
+        } else { $null }
+        CpuSampleCount                = $cpuSamples.Count
+        MemoryTotalMB                 = $memoryTotalMB
+        MemoryUsedMB                  = $memoryUsedMB
+        MemoryUsedPercent             = $memoryUsedPercent
+        SystemDrive                   = $env:SystemDrive
+        SystemDriveSizeGB             = $driveSizeGB
+        SystemDriveFreeGB             = $driveFreeGB
+        SystemDriveFreePercent        = $driveFreePercent
+        UptimeHours                   = $uptimeHours
+        StartupEnabledCount           = @(Get-Startups | Where-Object Enabled).Count
+        AutomaticManagedPageFile      = if ($computer) { $computer.AutomaticManagedPagefile } else { $null }
+        LastHotFixId                  = if ($hotfix) { $hotfix.HotFixID } else { $null }
+        LastHotFixInstalledOn         = $lastHotFixDate
+        DefenderRealTimeProtection    = $defender.RealTimeProtectionEnabled
+        DefenderSignatureAgeDays      = $defender.SignatureAgeDays
+        ActivePowerPlan               = Get-ActivePowerPlan
+        TopMemoryProcesses            = $topProcesses
+    }
+}
+
+function Save-PerformanceSnapshot {
+    [CmdletBinding()]
+    param([AllowNull()][object]$Snapshot)
+
+    if ($null -eq $Snapshot) { $Snapshot = Get-PerformanceSnapshot }
+    $directory = Get-SyncMasterDataDir -SubPasta 'Reports\Performance'
+    $path = Join-Path $directory ("performance_{0}.json" -f (Get-Date -Format 'yyyyMMdd_HHmmss_fff'))
+    $Snapshot | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $path -Encoding UTF8 -ErrorAction Stop
+    Registrar-Log ("Snapshot de desempenho salvo: {0}" -f $path)
+    return $path
+}
+
+function Compare-PerformanceSnapshot {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$Before,
+        [Parameter(Mandatory)][object]$After
+    )
+
+    $getDelta = {
+        param($BeforeValue, $AfterValue)
+        if ($null -eq $BeforeValue -or $null -eq $AfterValue) { return $null }
+        return [Math]::Round(([double]$AfterValue - [double]$BeforeValue), 2)
+    }
+    [pscustomobject]@{
+        BeforeCapturedAt           = $Before.CapturedAt
+        AfterCapturedAt            = $After.CapturedAt
+        CpuPercentDelta            = & $getDelta $Before.CpuPercent $After.CpuPercent
+        MemoryUsedPercentDelta     = & $getDelta $Before.MemoryUsedPercent $After.MemoryUsedPercent
+        SystemDriveFreeGBDelta     = & $getDelta $Before.SystemDriveFreeGB $After.SystemDriveFreeGB
+        StartupEnabledCountDelta   = & $getDelta $Before.StartupEnabledCount $After.StartupEnabledCount
+    }
+}
+
+function Compare-LatestPerformanceSnapshots {
+    [CmdletBinding()]
+    param()
+
+    $directory = Get-SyncMasterDataDir -SubPasta 'Reports\Performance'
+    $files = @(Get-ChildItem -LiteralPath $directory -Filter 'performance_*.json' -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 2)
+    if ($files.Count -lt 2) {
+        Write-Warning 'Sao necessarios pelo menos dois snapshots para comparar.'
+        return $null
+    }
+    try {
+        $after = Get-Content -LiteralPath $files[0].FullName -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        $before = Get-Content -LiteralPath $files[1].FullName -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        return Compare-PerformanceSnapshot -Before $before -After $after
+    } catch {
+        Write-Warning ("Falha ao comparar snapshots: {0}" -f $_.Exception.Message)
+        return $null
+    }
+}
+
+function Get-PageFileStatus {
+    [CmdletBinding()]
+    param()
+
+    try {
+        $computer = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
+        $usage = @(Get-CimInstance -ClassName Win32_PageFileUsage -ErrorAction Stop)
+        $allocated = ($usage | Measure-Object AllocatedBaseSize -Sum).Sum
+        $current = ($usage | Measure-Object CurrentUsage -Sum).Sum
+        $peak = ($usage | Measure-Object PeakUsage -Sum).Sum
+        [pscustomobject]@{
+            AutomaticManaged = [bool]$computer.AutomaticManagedPagefile
+            AllocatedMB      = if ($null -eq $allocated) { 0 } else { [int64]$allocated }
+            CurrentUsageMB   = if ($null -eq $current) { 0 } else { [int64]$current }
+            PeakUsageMB      = if ($null -eq $peak) { 0 } else { [int64]$peak }
+        }
+    } catch {
+        Write-Warning ("Falha ao consultar o arquivo de paginacao: {0}" -f $_.Exception.Message)
+        return $null
+    }
+}
+
+function New-PowerReport {
+    [CmdletBinding()]
+    param(
+        [ValidateSet('Energy','Battery')][string]$Type = 'Energy',
+        [ValidateRange(10,300)][int]$DurationSeconds = 60
+    )
+
+    if ($Type -eq 'Energy') { Require-Admin }
+    $directory = Get-SyncMasterDataDir -SubPasta 'Reports\Performance'
+    $path = Join-Path $directory ("power_{0}_{1}.html" -f $Type.ToLowerInvariant(), (Get-Date -Format 'yyyyMMdd_HHmmss_fff'))
+    try {
+        if ($Type -eq 'Energy') {
+            powercfg /energy /output $path /duration $DurationSeconds | Out-Null
+        } else {
+            powercfg /batteryreport /output $path | Out-Null
+        }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning ("powercfg retornou codigo {0}; relatorio nao gerado." -f $LASTEXITCODE)
+            return $null
+        }
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            Write-Warning 'powercfg terminou sem criar o relatorio esperado.'
+            return $null
+        }
+        Registrar-Log ("Relatorio powercfg salvo: {0}" -f $path)
+        return $path
+    } catch {
+        Write-Warning ("Falha ao gerar relatorio de energia: {0}" -f $_.Exception.Message)
+        return $null
+    }
+}
+
+function Invoke-DefenderQuickScan {
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact='Medium')]
+    param()
+
+    if (-not (Get-Command Start-MpScan -ErrorAction SilentlyContinue)) {
+        Write-Warning 'Start-MpScan nao esta disponivel neste sistema.'
+        return $false
+    }
+    Require-Admin
+    if (-not $PSCmdlet.ShouldProcess('Microsoft Defender', 'Executar verificacao rapida')) { return $false }
+    try {
+        Start-MpScan -ScanType QuickScan -ErrorAction Stop
+        Registrar-Log 'Microsoft Defender: verificacao rapida concluida.'
+        return $true
+    } catch {
+        Write-Warning ("Falha na verificacao rapida do Microsoft Defender: {0}" -f $_.Exception.Message)
+        return $false
+    }
+}
+
+function Invoke-DefenderPerformanceAnalysis {
+    [CmdletBinding()]
+    param()
+
+    if (-not (Get-Command New-MpPerformanceRecording -ErrorAction SilentlyContinue) -or
+        -not (Get-Command Get-MpPerformanceReport -ErrorAction SilentlyContinue)) {
+        Write-Warning 'O analisador de desempenho do Microsoft Defender nao esta disponivel.'
+        return $null
+    }
+    Require-Admin
+    $directory = Get-SyncMasterDataDir -SubPasta 'Reports\Performance'
+    $stem = "defender_{0}" -f (Get-Date -Format 'yyyyMMdd_HHmmss_fff')
+    $tracePath = Join-Path $directory ($stem + '.etl')
+    $reportPath = Join-Path $directory ($stem + '.json')
+    try {
+        Write-Host 'Reproduza a carga lenta e pressione ENTER para encerrar a gravacao.' -ForegroundColor Yellow
+        New-MpPerformanceRecording -RecordTo $tracePath -ErrorAction Stop
+        $report = Get-MpPerformanceReport -Path $tracePath -TopFiles 10 -TopExtensions 10 `
+            -TopProcesses 10 -TopScans 10 -Raw -ErrorAction Stop
+        $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $reportPath -Encoding UTF8 -ErrorAction Stop
+        Registrar-Log ("Analise de desempenho do Defender salva: {0}" -f $reportPath)
+        return [pscustomobject]@{ TracePath = $tracePath; ReportPath = $reportPath }
+    } catch {
+        Write-Warning ("Falha na analise de desempenho do Microsoft Defender: {0}" -f $_.Exception.Message)
+        return $null
+    }
+}
+
+function Menu-DefenderPerformance {
+    do {
+        Clear-Host
+        Write-Host '--- Microsoft Defender ---' -ForegroundColor Cyan
+        Write-Host '1) Verificacao rapida contra malware'
+        Write-Host '2) Gravar e analisar impacto de desempenho do Defender'
+        Write-Host '3) Abrir Seguranca do Windows'
+        Write-Host 'Q) Voltar'
+        $choice = Read-Host 'Escolha'
+        switch ($choice.ToUpper()) {
             '1' {
-                Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter } | ForEach-Object {
-                    try {
-                        # Detecta mídia
-                        $part = Get-Partition -DriveLetter $_.DriveLetter -ErrorAction SilentlyContinue | Select-Object -First 1
-                        $disk = if ($part) { Get-Disk -Number $part.DiskNumber -ErrorAction SilentlyContinue }
-                        if ($disk -and $disk.MediaType -eq 'SSD') {
-                            Optimize-Volume -DriveLetter $_.DriveLetter -ReTrim -Verbose
-                        }
-                    } catch { Write-Verbose $_.Exception.Message }
+                if (Confirm-Action 'Executar agora a verificacao rapida do Microsoft Defender?') {
+                    [void](Invoke-DefenderQuickScan -Confirm:$false)
                 }
                 Pause-Local
             }
             '2' {
-                Get-Volume | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter } | ForEach-Object {
-                    try {
-                        $part = Get-Partition -DriveLetter $_.DriveLetter -ErrorAction SilentlyContinue | Select-Object -First 1
-                        $disk = if ($part) { Get-Disk -Number $part.DiskNumber -ErrorAction SilentlyContinue }
-                        if ($disk -and $disk.MediaType -eq 'HDD') {
-                            Optimize-Volume -DriveLetter $_.DriveLetter -Defrag -Verbose
-                        }
-                    } catch { Write-Verbose $_.Exception.Message }
+                if (Confirm-Action 'Gravar uma carga para diagnosticar o impacto do Defender?') {
+                    $result = Invoke-DefenderPerformanceAnalysis
+                    if ($result) { $result | Format-List }
+                }
+                Pause-Local
+            }
+            '3' { Start-Process 'ms-settings:windowsdefender'; Pause-Local }
+            'Q' { return }
+            default { Write-Warning 'Opcao invalida.'; Pause-Local }
+        }
+    } while ($true)
+}
+
+
+# ---------- ARMAZENAMENTO: Windows escolhe TRIM/Defrag pelo tipo do volume ----------
+function Invoke-StorageOptimization {
+    [CmdletBinding()]
+    param([ValidateSet('Analyze','Optimize')][string]$Mode = 'Analyze')
+
+    Require-Admin
+    try {
+        $volumes = @(Get-Volume -ErrorAction Stop | Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter })
+    } catch {
+        Write-Warning ("Falha ao listar volumes: {0}" -f $_.Exception.Message)
+        return $false
+    }
+    if ($volumes.Count -eq 0) {
+        Write-Warning 'Nenhum volume fixo com letra foi encontrado.'
+        return $false
+    }
+
+    $falhas = 0
+    foreach ($volume in $volumes) {
+        try {
+            if ($Mode -eq 'Analyze') {
+                Optimize-Volume -DriveLetter $volume.DriveLetter -Analyze -Verbose -ErrorAction Stop | Out-Null
+            } else {
+                # Sem flag, o próprio Windows usa ReTrim em SSD e Defrag em HDD.
+                Optimize-Volume -DriveLetter $volume.DriveLetter -Verbose -ErrorAction Stop | Out-Null
+            }
+            Registrar-Log ("Optimize-Volume {0}: {1}" -f $Mode,$volume.DriveLetter)
+        } catch {
+            $falhas++
+            Write-Warning ("Volume {0}: {1}" -f $volume.DriveLetter,$_.Exception.Message)
+        }
+    }
+
+    if ($falhas -gt 0) {
+        Write-Warning ("Operação concluída com falha em {0} volume(s)." -f $falhas)
+        return $false
+    }
+    Write-Host ("{0} concluído em {1} volume(s)." -f $Mode,$volumes.Count) -ForegroundColor Green
+    return $true
+}
+
+function Storage-Maintenance {
+    do {
+        Clear-Host
+        Write-Host '--- Manutenção de Armazenamento ---' -ForegroundColor Cyan
+        Write-Host '1) Analisar volumes fixos (sem alterações)'
+        Write-Host '2) Otimizar volumes fixos automaticamente (TRIM/Defrag)'
+        Write-Host '3) Consultar estado do TRIM'
+        Write-Host 'Q) Voltar'
+        $choice = Read-Host 'Escolha'
+        switch ($choice.ToUpper()) {
+            '1' { [void](Invoke-StorageOptimization -Mode Analyze); Pause-Local }
+            '2' {
+                if (Confirm-Action 'Otimizar agora todos os volumes fixos?') {
+                    [void](Invoke-StorageOptimization -Mode Optimize)
                 }
                 Pause-Local
             }
             '3' {
                 fsutil behavior query DisableDeleteNotify
-                Write-Host "Se o resultado é 0, o TRIM está habilitado." -ForegroundColor Yellow
+                if ($LASTEXITCODE -ne 0) { Write-Warning ("fsutil retornou código {0}." -f $LASTEXITCODE) }
                 Pause-Local
             }
-            default { return }
+            'Q' { return }
+            default { Write-Warning 'Opção inválida.'; Pause-Local }
         }
-    }
+    } while ($true)
+}
 
-    # ---------- SMART (básico) ----------
-    function Disk-SMART {
-        Clear-Host
-        Write-Host "--- SMART (Básico) ---" -ForegroundColor Cyan
-        try {
-            $st = Get-CimInstance -Namespace root/wmi -ClassName MSStorageDriver_FailurePredictStatus -ErrorAction Stop
-            foreach ($s in $st) {
-                $ok = -not $s.PredictFailure
-                Write-Host ("{0}`n  FalhaPrevista: {1}" -f $s.InstanceName, $(if($ok){"não"}else{"SIM"})) -ForegroundColor $(if($ok){'Green'}else{'Red'})
-            }
-        } catch {
-            Write-Warning "SMART WMI indisponível neste host/driver. Considere a ferramenta do fabricante do disco."
+# ---------- Energia: Equilibrado por padrão; Alto Desempenho apenas sob demanda ----------
+function Set-PowerPlan {
+    [CmdletBinding()]
+    param([ValidateSet('Balanced','HighPerformance')][string]$Plan = 'Balanced')
+
+    $scheme = if ($Plan -eq 'Balanced') { 'SCHEME_BALANCED' } else { 'SCHEME_MIN' }
+    $label = if ($Plan -eq 'Balanced') { 'Equilibrado' } else { 'Alto desempenho' }
+    try {
+        powercfg /setactive $scheme | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning ("powercfg retornou código {0}; plano não alterado." -f $LASTEXITCODE)
+            return $false
         }
-        Pause-Local
+    } catch {
+        Write-Warning ("Falha ao executar powercfg: {0}" -f $_.Exception.Message)
+        return $false
     }
+    Registrar-Log ("Plano de energia ativado: {0}" -f $label)
+    Write-Host ("Plano de energia: {0}." -f $label) -ForegroundColor Green
+    return $true
+}
 
-    # ---------- Energia / CPU ----------
-    function Power-CPU-Tune {
+function Power-CPU-Tune {
+    do {
         Clear-Host
-        Write-Host "--- Energia/CPU ---" -ForegroundColor Cyan
-        Write-Host "1) Aplicar plano recomendado (Desktop: Alto desempenho; Notebook: Equilibrado)"
-        Write-Host "2) Desktop: fixar min/max do processador em 100% (cuidado em notebooks)"
-        Write-Host "3) Restaurar plano Equilibrado"
-        Write-Host "4) Voltar"
-        $c = Read-Host "Escolha"
-        switch ($c) {
-            '1' {
-                Toggle-PowerPlan
-                Pause-Local
-            }
+        Write-Host '--- Energia/CPU ---' -ForegroundColor Cyan
+        Write-Host '1) Equilibrado (recomendado para uso geral)'
+        Write-Host '2) Alto desempenho (carga sustentada; maior consumo e calor)'
+        Write-Host '3) Relatorio de eficiencia energetica (60 segundos)'
+        Write-Host '4) Relatorio de bateria'
+        Write-Host '5) Consultar arquivo de paginacao (sem alterar)'
+        Write-Host 'Q) Voltar'
+        $choice = Read-Host 'Escolha'
+        switch ($choice.ToUpper()) {
+            '1' { [void](Set-PowerPlan -Plan Balanced); Pause-Local }
             '2' {
-                Require-Admin
-                try {
-                    powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN 100
-                    powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMAX 100
-                    powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN 100
-                    powercfg -setdcvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMAX 100
-                    powercfg -setactive SCHEME_CURRENT
-                    Write-Host "Processador fixado em 100% (pode aumentar consumo/temperatura)." -ForegroundColor Yellow
-                } catch {
-                    Write-Warning ("Falha ao aplicar: {0}" -f $_.Exception.Message)
+                if (Confirm-Action 'Ativar Alto desempenho para uma carga sustentada?') {
+                    [void](Set-PowerPlan -Plan HighPerformance)
                 }
                 Pause-Local
             }
             '3' {
-                powercfg -setactive SCHEME_BALANCED | Out-Null
-                Write-Host "Plano Equilibrado restaurado." -ForegroundColor Green
+                Write-Host 'Para um resultado util, feche programas e mantenha o computador ocioso durante a coleta.' -ForegroundColor Yellow
+                $path = New-PowerReport -Type Energy
+                if ($path) { Write-Host ("Relatorio salvo em: {0}" -f $path) -ForegroundColor Green }
                 Pause-Local
             }
-            default { return }
+            '4' {
+                $path = New-PowerReport -Type Battery
+                if ($path) { Write-Host ("Relatorio salvo em: {0}" -f $path) -ForegroundColor Green }
+                Pause-Local
+            }
+            '5' { Get-PageFileStatus | Format-List; Pause-Local }
+            'Q' { return }
+            default { Write-Warning 'Opção inválida.'; Pause-Local }
         }
-    }
+    } while ($true)
+}
 
-    # ---------- Indexador de Pesquisa ----------
-    function SearchIndexer-Toggle {
-        Clear-Host
-        Write-Host "--- Indexador de Pesquisa (WSearch) ---" -ForegroundColor Cyan
-        $svc = Get-Service WSearch -ErrorAction SilentlyContinue
-        if (-not $svc) { Write-Warning "Serviço WSearch não encontrado."; Pause-Local; return }
-        Write-Host ("Estado atual: {0}" -f $svc.Status)
-        Write-Host "1) Pausar (Stop-Service)   2) Retomar (Start-Service)   3) Voltar"
-        $c = Read-Host "Escolha"
-        switch ($c) {
-            '1' { Stop-Service WSearch -Force; Write-Host "Indexador pausado." -ForegroundColor Yellow; Pause-Local }
-            '2' { Start-Service WSearch;        Write-Host "Indexador retomado." -ForegroundColor Green;  Pause-Local }
-            default { return }
-        }
-    }
+Set-Alias -Name Clear-Temp -Value Clean-Temp -Scope Script -Force
 
-    # ---------- Tarefas agendadas ruidosas ----------
-    function Tasks-Noise {
-        Clear-Host
-        Write-Host "--- Tarefas Agendadas (Updaters/Telemetry) ---" -ForegroundColor Cyan
-        $cands = @(
-            '\Microsoft\Office\',
-            '\Microsoft\Windows\UpdateOrchestrator\',
-            '\Microsoft\Windows\Application Experience\',
-            '\Microsoft\Windows\Customer Experience Improvement Program\',
-            '\Adobe\','\Google\Update\','\Microsoft\EdgeUpdate\','\Teams\','\OneDrive\'
-        )
-        $tasks = @()
-        foreach ($path in $cands) {
-            try { $tasks += Get-ScheduledTask -TaskPath $path -ErrorAction SilentlyContinue } catch { Write-Verbose $_.Exception.Message }
-        }
-        if (-not $tasks) { Write-Host "Nenhuma tarefa localizada nos caminhos monitorados." -ForegroundColor Yellow; Pause-Local; return }
-        $tasks = $tasks | Sort-Object TaskPath, TaskName
-        $i=0; $map=@{}
-        foreach ($t in $tasks) { $i++; $map[$i]=$t; Write-Host ("{0,3}. [{1}] {2}{3}" -f $i, $t.State, $t.TaskPath, $t.TaskName) }
-        Write-Host "A) Desabilitar por número   B) Habilitar por número   Q) Voltar"
-        $ans = Read-Host "Escolha"
-        switch ($ans.ToUpper()) {
-            'A' { $ns = Read-Host "Número"; if ($ns -match '^\d+$' -and $map[[int]$ns]) { Disable-ScheduledTask -InputObject $map[[int]$ns] | Out-Null; Write-Host "Desabilitada." -ForegroundColor Yellow } else { Write-Warning "Número inválido." }; Pause-Local }
-            'B' { $ns = Read-Host "Número"; if ($ns -match '^\d+$' -and $map[[int]$ns]) { Enable-ScheduledTask  -InputObject $map[[int]$ns] | Out-Null; Write-Host "Habilitada."  -ForegroundColor Green  } else { Write-Warning "Número inválido." }; Pause-Local }
-            default { return }
-        }
-    }
-
-# Aliases de verbo aprovado (retrocompat): chamada por nome PT segue funcionando;
-# os aliases melhoram a descoberta no console (Get-Command Clear-*, Switch-*).
-Set-Alias -Name Clear-Temp       -Value Clean-Temp     -Scope Script -Force
-Set-Alias -Name Switch-PowerPlan -Value Toggle-PowerPlan -Scope Script -Force
-
-Export-ModuleMember -Function Pause-Local, Is-ServerOS, Set-DWord, Backup-Registro, `
-    Show-Estado, Toggle-PowerPlan, Clean-Temp, Get-Startups, Parse-Selection, `
+Export-ModuleMember -Function Pause-Local, Clean-Temp, Get-Startups, Parse-Selection, `
     Disable-StartupByNumber, Enable-StartupByNumber, Menu-Startups, `
-    Storage-Maintenance, Disk-SMART, Power-CPU-Tune, SearchIndexer-Toggle, Tasks-Noise `
-    -Alias Clear-Temp, Switch-PowerPlan
+    Get-PerformanceSnapshot, Save-PerformanceSnapshot, Compare-PerformanceSnapshot, `
+    Compare-LatestPerformanceSnapshots, Get-PageFileStatus, New-PowerReport, `
+    Invoke-DefenderQuickScan, Invoke-DefenderPerformanceAnalysis, Menu-DefenderPerformance, `
+    Invoke-StorageOptimization, Storage-Maintenance, Set-PowerPlan, Power-CPU-Tune `
+    -Alias Clear-Temp
