@@ -11,4 +11,4 @@
 - **Otimizacao.Tests.ps1** (105 ln)
 - **PowerShellUpdate.Tests.ps1** (127 ln)
 - **Rede.Tests.ps1** (33 ln)
-- **Sync.Tests.ps1** (355 ln)
+- **Sync.Tests.ps1** (364 ln)

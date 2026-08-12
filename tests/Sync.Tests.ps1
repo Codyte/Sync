@@ -352,4 +352,13 @@ Describe 'Agendar-TarefaSincronizacao (PowerShell da tarefa SYSTEM)' {
             $Execute -eq 'C:\Program Files\PowerShell\7\pwsh.exe'
         }
     }
+
+    It 'rejeita hora fora de 00:00..23:59 antes de criar a tarefa' {
+        Mock Read-Host { '29:99' } -ModuleName Sync
+
+        { Agendar-TarefaSincronizacao } | Should -Not -Throw
+
+        Should -Invoke New-ScheduledTaskTrigger -ModuleName Sync -Times 0
+        Should -Invoke Register-ScheduledTask -ModuleName Sync -Times 0
+    }
 }

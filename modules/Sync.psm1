@@ -836,7 +836,7 @@ function Iniciar-SincronizacaoV2 {
 function Agendar-TarefaSincronizacao {
     Write-Host "--- AGENDAMENTO DE TAREFA DE SINCRONIZAÇÃO ---" -ForegroundColor Cyan
     $hora = Read-Host "Digite a hora para agendar a sincronização diária (formato HH:mm, ex: 22:00)"
-    if ($hora -notmatch "^\d{2}:\d{2}$") { Write-Warning "Formato de hora inválido."; Pause-Script; return }
+    if ($hora -notmatch "^(?:[01]\d|2[0-3]):[0-5]\d$") { Write-Warning "Formato de hora inválido."; Pause-Script; return }
     
     $origemObj = Selecionar-DiretorioDaLista -Titulo "Selecione a ORIGEM da sincronização agendada"
     if (-not $origemObj) { Write-Host "Operação cancelada."; Pause-Script; return }
