@@ -51,6 +51,14 @@ Describe 'Get-SyncMasterDataDir' {
             Test-Path $sub | Should -BeTrue
         } finally { $env:SYNCMASTER_DATA_DIR = $old }
     }
+    It 'falha se o caminho de dados existente for um arquivo' {
+        $old = $env:SYNCMASTER_DATA_DIR
+        try {
+            $env:SYNCMASTER_DATA_DIR = Join-Path $TestDrive 'dados-arquivo'
+            Set-Content -LiteralPath $env:SYNCMASTER_DATA_DIR -Value 'ocupado'
+            { Get-SyncMasterDataDir } | Should -Throw
+        } finally { $env:SYNCMASTER_DATA_DIR = $old }
+    }
 }
 
 Describe 'Start/Stop-SyncMasterLog (transcript de sessao)' {
@@ -88,5 +96,10 @@ Describe 'Ensure-Dir' {
         Ensure-Dir -Path $p
         { Ensure-Dir -Path $p } | Should -Not -Throw
         Test-Path $p | Should -BeTrue
+    }
+    It 'falha se o caminho existente for um arquivo' {
+        $p = Join-Path $TestDrive 'arquivo'
+        Set-Content -LiteralPath $p -Value 'ocupado'
+        { Ensure-Dir -Path $p } | Should -Throw
     }
 }

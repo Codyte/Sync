@@ -8,8 +8,8 @@
   <sub>L7:Ativar-Crack  L55:Menu-Ativacao  L75:Mostrar-StatusAtivacao  L81:Instalar-ChaveProduto  L91:Ativar-Windows</sub>
 - **Backup.psm1** (164 ln)
   <sub>L12:Get-ZipBackupPath  L29:Invoke-ZipBackup  L49:Invoke-ZipRestore  L76:Criar-BackupZIP  L92:Restaurar-BackupZIP  L125:Clonar-Disco</sub>
-- **Core.psm1** (136 ln)
-  <sub>L10:Get-SyncMasterDataDir  L31:Pause-Script  L37:Confirm-Action  L47:Registrar-Log  L61:Start-SyncMasterLog  L78:Stop-SyncMasterLog  L88:Visualizar-Logs  L103:Start-SyncMaster  L115:Ensure-Dir  L122:Test-IsAdmin  L128:Require-Admin</sub>
+- **Core.psm1** (147 ln)
+  <sub>L10:Get-SyncMasterDataDir  L37:Pause-Script  L43:Confirm-Action  L53:Registrar-Log  L67:Start-SyncMasterLog  L84:Stop-SyncMasterLog  L94:Visualizar-Logs  L109:Start-SyncMaster  L121:Ensure-Dir  L133:Test-IsAdmin  L139:Require-Admin</sub>
 - **Hardware.psm1** (251 ln)
   <sub>L7:Get-CpuRapido  L17:Get-MemUsoMB  L27:Get-DiscosInfo  L41:Monitorar-Recursos  L111:Merge-DiscoFisico  L133:Diagnostico-Hardware  L187:MAPA DISCO → PARTIÇÃO → VOLUME ---  L217:Get-CpuUsageRobusto</sub>
 - **Menu.psm1** (62 ln)

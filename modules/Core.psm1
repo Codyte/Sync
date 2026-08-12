@@ -21,7 +21,13 @@ function Get-SyncMasterDataDir {
             elseif ($env:LOCALAPPDATA)      { Join-Path $env:LOCALAPPDATA 'SyncMaster' }
             else                            { Join-Path $env:USERPROFILE  'SyncMaster' }
     $dir = if ($SubPasta) { Join-Path $base $SubPasta } else { $base }
-    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    if (Test-Path -LiteralPath $dir -ErrorAction Stop) {
+        if (-not (Test-Path -LiteralPath $dir -PathType Container -ErrorAction Stop)) {
+            throw "O caminho de dados existe, mas nao e um diretorio: $dir"
+        }
+    } else {
+        New-Item -ItemType Directory -Path $dir -Force -ErrorAction Stop | Out-Null
+    }
     return $dir
 }
 
@@ -114,8 +120,13 @@ function Start-SyncMaster {
 # Garante que um diretorio exista (idempotente).
 function Ensure-Dir {
     param([string]$Path)
-    try { New-Item -ItemType Directory -Path $Path -Force | Out-Null }
-    catch { Write-Verbose $_.Exception.Message }
+    if (Test-Path -LiteralPath $Path -ErrorAction Stop) {
+        if (-not (Test-Path -LiteralPath $Path -PathType Container -ErrorAction Stop)) {
+            throw "O caminho existe, mas nao e um diretorio: $Path"
+        }
+        return
+    }
+    New-Item -ItemType Directory -Path $Path -Force -ErrorAction Stop | Out-Null
 }
 
 # Retorna $true se a sessao atual e elevada (Administrador).

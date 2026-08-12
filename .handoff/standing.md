@@ -1,6 +1,6 @@
 # Standing decisions · Sync Master
 
-- Público-alvo: Windows desktop comum, principalmente Windows 11 x64; Windows 10 suportado entra quando não aumentar materialmente o esforço.
+- Público-alvo: Windows 10 e Windows 11 desktop comuns em x64, ambos tratados como alvos de primeira classe.
 - Fora de escopo: Windows Server, Server Core, Windows legado fora de suporte e cenários raros que limitem o desenvolvimento ou tenham pouco retorno.
 - PowerShell 7 é o runtime preferencial; Windows PowerShell 5.1 precisa sustentar apenas bootstrap, detecção, instalação e relançamento confiáveis, além dos fluxos automatizados já deliberadamente compatíveis.
 - Priorizar confiabilidade e utilidade prática, não compatibilidade perfeita: recursos opcionais devem degradar com aviso claro, sem derrubar o restante da ferramenta.
