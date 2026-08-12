@@ -54,7 +54,7 @@
         # Rede
         'Menu-DiagnosticoRede','Test-TcpPort','Testar-PortaTCP','Ping-Sweep','ConvertFrom-PortSpec','Scan-PortasTCP','Scan-ARP',
         'Descobrir-Hostnames','Whois-Lookup','Scan-Servicos','Mostrar-Netstat','Instalar-e-Testar-Speedtest',
-        'Menu-Rede','Configurar-TcpAutoTuning','Otimizar-QoS',
+        'Menu-Rede','Configurar-TcpAutoTuning',
         # Ativacao
         'Menu-Ativacao','Mostrar-StatusAtivacao','Instalar-ChaveProduto','Ativar-Windows',
         # PowerShellUpdate

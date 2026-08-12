@@ -37,4 +37,10 @@ Describe 'SyncMaster.psd1 (manifesto)' {
         Get-Content (Join-Path $root 'modules\Backup.psm1') -Raw | Should -Not -Match '(?i)\bClonar-Disco\b'
         (Get-MenuPrincipal).Comando | Should -Not -Contain 'Clonar-Disco'
     }
+
+    It 'nao exporta pseudo-otimizacao de banda reservada' {
+        $manifest = Import-PowerShellDataFile -Path $script:Manifesto
+        $manifest.FunctionsToExport | Should -Not -Contain 'Otimizar-QoS'
+        Get-Content (Join-Path $root 'modules\Rede.psm1') -Raw | Should -Not -Match '(?i)\bOtimizar-QoS\b'
+    }
 }

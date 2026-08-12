@@ -1,21 +1,20 @@
 ﻿# ====================== BEGIN NAV INDEX ======================
 # NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
-#   L27    Menu-DiagnosticoRede
-#   L60    Test-TcpPort
-#   L80    Testar-PortaTCP
-#   L92    Ping-Sweep
-#   L118   ConvertFrom-PortSpec
-#   L137   Scan-PortasTCP
-#   L156   Scan-ARP
-#   L167   Descobrir-Hostnames
-#   L196   Whois-Lookup
-#   L206   Scan-Servicos
-#   L219   Mostrar-Netstat
-#   L224   Instalar-e-Testar-Speedtest
-#   L227   Run-Ookla
-#   L283   Menu-Rede
-#   L309   Configurar-TcpAutoTuning
-#   L349   Otimizar-QoS
+#   L26    Menu-DiagnosticoRede
+#   L59    Test-TcpPort
+#   L79    Testar-PortaTCP
+#   L91    Ping-Sweep
+#   L117   ConvertFrom-PortSpec
+#   L136   Scan-PortasTCP
+#   L155   Scan-ARP
+#   L166   Descobrir-Hostnames
+#   L195   Whois-Lookup
+#   L205   Scan-Servicos
+#   L218   Mostrar-Netstat
+#   L223   Instalar-e-Testar-Speedtest
+#   L226   Run-Ookla
+#   L282   Menu-Rede
+#   L306   Configurar-TcpAutoTuning
 # ======================= END NAV INDEX =======================
 
 <#
@@ -289,7 +288,6 @@ function Menu-Rede {
         Write-Host "4. Redefinir Pilha TCP/IP (pode exigir reinicialização)"
         Write-Host "5. Testar Conexão com a Internet (Ping Google)"
         Write-Host "6. Gerenciar Nível de Autoajuste TCP"
-        Write-Host "7. Otimizar Largura de Banda Reservada (QoS)" -ForegroundColor Green
         Write-Host "Q. Voltar"
         $opcao = Read-Host "Sua escolha"
         switch ($opcao.ToUpper()) {
@@ -299,7 +297,6 @@ function Menu-Rede {
             '4' { netsh int ip reset; Registrar-Log "Rede: TCP/IP STACK RESET (requer reboot)"; Write-Host "Pilha TCP/IP redefinida. Reinicie se necessário."; Pause-Script }
             '5' { ping google.com; Pause-Script }
             '6' { Configurar-TcpAutoTuning }
-            '7' { Otimizar-QoS }
             'Q' { return }
             default {Write-Warning "Opção inválida."}
         }
@@ -346,52 +343,4 @@ function Configurar-TcpAutoTuning {
     Pause-Script
 }
 
-function Otimizar-QoS {
-    $regPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Psched"
-    $regKey = "NonBestEffortLimit"
-    do {
-        Clear-Host
-        Write-Host "--- OTIMIZAÇÃO DO AGENDADOR DE PACOTES QOS ---" -ForegroundColor Cyan
-        try {
-            $currentValue = Get-ItemPropertyValue -Path $regPath -Name $regKey -ErrorAction SilentlyContinue
-            if ($null -ne $currentValue) {
-                if ($currentValue -eq 0) { Write-Host "Status Atual: Otimizado (Limite de banda reservada desativado)." -ForegroundColor Green }
-                else { Write-Host "Status Atual: Valor personalizado definido ($currentValue)." -ForegroundColor Yellow }
-            } else { Write-Host "Status Atual: Padrão do Windows (reserva até 20% da banda)." -ForegroundColor Yellow }
-        } catch { Write-Host "Status Atual: Padrão do Windows (reserva até 20% da banda)." -ForegroundColor Yellow }
-        Write-Host "------------------------------------------------------------"
-        Write-Host "1. Otimizar Rede (Define NonBestEffortLimit = 0)"
-        Write-Host "2. Restaurar Padrão do Windows (Deleta a chave)" -ForegroundColor Red
-        Write-Host "Q. Voltar"
-        $opcao = Read-Host "Sua escolha"
-        switch ($opcao.ToUpper()) {
-            '1' {
-                if (Confirm-Action -Prompt "Confirma a definição de 'NonBestEffortLimit' como 0?") {
-                    try {
-                        if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
-                        Set-ItemProperty -Path $regPath -Name $regKey -Value 0 -Type DWord -Force
-                        Registrar-Log "Rede: QoS NonBestEffortLimit=0 (otimizado)"
-                        Write-Host "Otimização de QoS aplicada com sucesso!" -ForegroundColor Green
-                    } catch { Write-Warning "Falha ao aplicar a otimização. Erro: $($_.Exception.Message)" }
-                }
-                Pause-Script
-            }
-            '2' {
-                if ($null -ne (Get-Item -Path $regPath -ErrorAction SilentlyContinue).GetValue($regKey, $null)) {
-                     if (Confirm-Action -Prompt "Confirma a EXCLUSÃO da chave 'NonBestEffortLimit'?") {
-                        try {
-                            Remove-ItemProperty -Path $regPath -Name $regKey -Force -ErrorAction Stop
-                            Registrar-Log "Rede: QoS NonBestEffortLimit removido (padrao Windows)"
-                            Write-Host "Padrão do Windows restaurado." -ForegroundColor Green
-                        } catch { Write-Warning "Falha ao remover a chave. Erro: $($_.Exception.Message)" }
-                    }
-                } else { Write-Host "A otimização já não está aplicada." -ForegroundColor Green }
-                Pause-Script
-            }
-            'Q' { return }
-            default { Write-Warning "Opção inválida."; Pause-Script }
-        }
-    } while ($true)
-}
-
-Export-ModuleMember -Function Menu-DiagnosticoRede, Test-TcpPort, Testar-PortaTCP, Ping-Sweep, ConvertFrom-PortSpec, Scan-PortasTCP, Scan-ARP, Descobrir-Hostnames, Whois-Lookup, Scan-Servicos, Mostrar-Netstat, Instalar-e-Testar-Speedtest, Menu-Rede, Configurar-TcpAutoTuning, Otimizar-QoS
+Export-ModuleMember -Function Menu-DiagnosticoRede, Test-TcpPort, Testar-PortaTCP, Ping-Sweep, ConvertFrom-PortSpec, Scan-PortasTCP, Scan-ARP, Descobrir-Hostnames, Whois-Lookup, Scan-Servicos, Mostrar-Netstat, Instalar-e-Testar-Speedtest, Menu-Rede, Configurar-TcpAutoTuning
