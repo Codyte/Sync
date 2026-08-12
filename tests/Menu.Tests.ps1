@@ -6,6 +6,15 @@ BeforeAll {
     $root = Split-Path $PSScriptRoot -Parent
     Import-Module (Join-Path $root 'SyncMaster.psd1') -Force -DisableNameChecking
     $script:Entradas = Get-MenuPrincipal
+    $tokens = $null; $errors = $null
+    $launcherAst = [System.Management.Automation.Language.Parser]::ParseFile(
+        (Join-Path $root 'Sync_Master.ps1'), [ref]$tokens, [ref]$errors
+    )
+    $script:MenuAvancadoAst = $launcherAst.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -eq 'Menu-Avancado'
+    }, $true) | Select-Object -First 1
     # Acoes definidas no launcher .ps1 (nao em modulo): nao resolvem no teste; sao toleradas.
     $script:LauncherLocais = @('Menu-Otimizacao','Executor','Criar-App')
 }
@@ -46,5 +55,12 @@ Describe 'Get-MenuPrincipal (tabela)' {
 Describe 'Show-MenuPrincipal (render)' {
     It 'nao lanca ao renderizar a tabela' {
         { Show-MenuPrincipal -Entradas $script:Entradas 6>$null } | Should -Not -Throw
+    }
+}
+
+Describe 'Menu-Avancado (seguranca)' {
+    It 'nao expoe execucao livre de BCDEDIT' {
+        $script:MenuAvancadoAst | Should -Not -BeNullOrEmpty
+        $script:MenuAvancadoAst.Extent.Text | Should -Not -Match '(?i)\bbcdedit\b'
     }
 }

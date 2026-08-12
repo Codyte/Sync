@@ -21,12 +21,12 @@
 #   L912   Gerenciar-ServicoDeAgente
 #   L962   Menu-Ferramentas
 #   L988   Menu-Avancado
-#   L1030  Gerenciar-EstadosOciososProcessador
-#   L1073  Utilitário: enviar arquivo para a Lixeira (PS 5/7) ---
-#   L1108  Criar-App
-#   L1171  Executor
-#   L1245  Aliases de verbo aprovado (retrocompat) ---
-#   L1254  PARTE 3: LÓGICA DE EXECUÇÃO PRINCIPAL ---
+#   L1014  Gerenciar-EstadosOciososProcessador
+#   L1057  Utilitário: enviar arquivo para a Lixeira (PS 5/7) ---
+#   L1092  Criar-App
+#   L1155  Executor
+#   L1229  Aliases de verbo aprovado (retrocompat) ---
+#   L1238  PARTE 3: LÓGICA DE EXECUÇÃO PRINCIPAL ---
 # ======================= END NAV INDEX =======================
 
 # ===================================================================
@@ -993,7 +993,6 @@ function Menu-Avancado {
         Write-Warning "Prossiga apenas se souber o que está fazendo."
         Write-Host "1. Ajustar Cache do Sistema de Arquivos (Fsutil memoryusage)"
         Write-Host "2. Gerenciar Estados Ociosos do Processador"
-        Write-Host "3. Ajustes de Timer do Sistema (BCDEDIT - MUITO PERIGOSO)"
         Write-Host "Q. Voltar"
         $opcao = Read-Host "Sua escolha"
         switch ($opcao.ToUpper()) {
@@ -1006,21 +1005,6 @@ function Menu-Avancado {
                 Pause-Script
             }
             '2' { Gerenciar-EstadosOciososProcessador }
-            '3' {
-                Write-Warning "Alterar BCDEDIT pode impedir o boot do sistema. NÃO prossiga sem um backup completo."
-                if(Confirm-Action -Prompt "Entendo os riscos e desejo prosseguir?"){
-                    if (Confirm-Action -Prompt "Criar um Ponto de Restauração antes? (fortemente recomendado)") {
-                        Criar-PontoRestauracao -Descricao "Antes de bcdedit (Sync Master)"
-                    }
-                    $bcd_cmd = Read-Host "Digite o comando bcdedit COMPLETO a ser executado (ex: /set useplatformclock true)"
-                    if ([string]::IsNullOrWhiteSpace($bcd_cmd)) { Write-Warning "Nenhum comando inserido." }
-                    elseif(Confirm-Action -Prompt "Executar 'bcdedit $bcd_cmd'?"){
-                        Registrar-Log "bcdedit $bcd_cmd (executado pelo usuario)"
-                        Start-Process "bcdedit" -ArgumentList $bcd_cmd -Wait -Verb RunAs
-                    }
-                }
-                Pause-Script
-            }
             'Q' { return }
             default {Write-Warning "Opção inválida."}
         }
