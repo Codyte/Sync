@@ -43,16 +43,16 @@ Depois, você também pode iniciar o programa clicando duas vezes em **`Sync Mas
 ### Opção 2 — instalar e executar com IRM
 
 ```powershell
-irm https://raw.githubusercontent.com/Codyte/Sync/master/install.ps1 | iex
+irm https://github.com/Codyte/Sync/raw/refs/heads/master/install.ps1 | iex
 ```
 
-Esse comando baixa o repositório oficial, instala em `%LOCALAPPDATA%\SyncMaster\App` e abre o launcher. Executá-lo novamente atualiza os arquivos do aplicativo sem apagar configurações e logs.
+Esse comando instala em `%LOCALAPPDATA%\SyncMaster\App` e abre o launcher. Nas próximas execuções, ele consulta o commit atual da `master`: se a instalação já for igual, apenas abre; se houver mudança, atualiza os arquivos sem apagar configurações e logs.
 
 > [!CAUTION]
 > `irm ... | iex` executa imediatamente o conteúdo recebido da internet. Se preferir inspecionar o instalador antes, use a forma em duas etapas:
 
 ```powershell
-irm https://raw.githubusercontent.com/Codyte/Sync/master/install.ps1 -OutFile $env:TEMP\SyncMaster-install.ps1
+irm https://github.com/Codyte/Sync/raw/refs/heads/master/install.ps1 -OutFile $env:TEMP\SyncMaster-install.ps1
 & $env:TEMP\SyncMaster-install.ps1
 ```
 

@@ -35,16 +35,25 @@ Describe 'install.ps1' {
         try {
             # Mesmo modelo do IRM: o texto chega sem $PSScriptRoot e vira um scriptblock.
             $bootstrap = [scriptblock]::Create((Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'install.ps1')))
-            & $bootstrap -ArchivePath $zip -NoLaunch
+            $commitA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+            $commitB = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+            & $bootstrap -ArchivePath $zip -CommitId $commitA -NoLaunch
 
             Test-Path (Join-Path $env:LOCALAPPDATA 'SyncMaster\App\Sync_Master.ps1') | Should -BeTrue
             Get-Content (Join-Path $logs 'preservar.log') | Should -Be 'ok'
+            (Get-Content (Join-Path $env:LOCALAPPDATA 'SyncMaster\App\.syncmaster-commit')).Trim() | Should -Be $commitA
 
             $obsolete = Join-Path $env:LOCALAPPDATA 'SyncMaster\App\obsoleto.txt'
             Set-Content -LiteralPath $obsolete -Value 'remover na atualizacao'
-            & $bootstrap -ArchivePath $zip -NoLaunch
+            Mock Start-Process {}
+            & $bootstrap -ArchivePath $zip -CommitId $commitA
+            Test-Path -LiteralPath $obsolete | Should -BeTrue
+            Should -Invoke Start-Process -Times 1
+
+            & $bootstrap -ArchivePath $zip -CommitId $commitB -NoLaunch
             Test-Path -LiteralPath $obsolete | Should -BeFalse
             Get-Content (Join-Path $logs 'preservar.log') | Should -Be 'ok'
+            (Get-Content (Join-Path $env:LOCALAPPDATA 'SyncMaster\App\.syncmaster-commit')).Trim() | Should -Be $commitB
         }
         finally {
             $env:LOCALAPPDATA = $oldLocalAppData
