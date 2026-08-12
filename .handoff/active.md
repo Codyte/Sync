@@ -1,48 +1,44 @@
 # Handoff · Sync Master · 2026-08-12
 
 ## Goal
-Continuar a auditoria recursiva e orientada por risco do Sync Master para Windows 10 e 11 desktop x64, assumindo execução elevada.
+Continuar a auditoria recursiva e orientada por risco do Sync Master para Windows 10/11 desktop x64, com sessão elevada.
 
 ## State
-- HEAD: 7dfc8ff
-- Done: `Core.psm1` auditado; criação de data dir e `Ensure-Dir` agora falham se o caminho não for diretório ou não puder ser criado (`9c9814f`).
-- Done: `Sync.psm1` corrigido em quatro lotes: subpastas comuns de perfil não perdem arquivos por autoexclusão (`626fed3`); destino inexistente é normalizado antes do guard de aninhamento (`71f1b38`); amostragem para tuning para em `LimiteArquivos + 1` e distingue limite exato (`e0d4100`); horário agendado aceita só `00:00..23:59` (`7dfc8ff`).
-- Done: `Backup.psm1` inspecionado; round-trip, origem/ZIP ausentes e overwrite já cobertos, sem achado concreto que justificasse edição.
-- Done: gate final em `7dfc8ff`: 143 testes, 0 falhas; PSScriptAnalyzer 0 erros e 10 warnings preexistentes. Smokes direcionados passaram em Windows PowerShell 5.1.19041 no host Windows 10.
-- In progress: nenhuma edição de produção pendente; `master` sincronizado com `origin/master`. Apenas este handoff/arquivo de arquivo ainda precisa ser commitado após a gravação.
+- HEAD: 736e4c0
+- Done: `Otimizacao.psm1` agora preserva startups em falhas/colisões (`8e4cb2b`), limita limpeza a TEMP absoluto fora da raiz (`ae10108`) e propaga falhas de escrita/backup do Registro (`95789c1`).
+- Done: removidos BCDEDIT livre (`5393b02`), ativador remoto (`ec51ba1`), clonagem bruta por `dd` (`b7df534`) e executor remoto WinUtil (`736e4c0`).
+- Done: speedtest não instala módulos arbitrários e exige confirmação para o pacote exato da Ookla (`59fd561`); pseudo-otimização QoS removida (`e7d6859`); parser/porta TCP limitados (`e929550`).
+- Done: monitor de hardware rejeita ciclo zero e intervalo agressivo (`3781dac`).
+- Done: gate final em `736e4c0`: 165 testes, 0 falhas; PSScriptAnalyzer 0 erros e 10 warnings preexistentes. Smokes direcionados passaram no Windows PowerShell 5.1.19041 do host Windows 10.
+- In progress: nenhuma edição de produção; `master` sincronizado com `origin/master`. Este handoff/arquivo ainda precisa ser commitado.
 
 ## Decisions (and why)
-- Windows 10 e 11 desktop x64 são alvos de primeira classe; Server/legado continuam fora — pedido atual do usuário e standing decision atualizada.
-- Sessão elevada é condição inicial; não gastar auditoria em fluxos sem admin — orientação explícita do usuário.
-- PowerShell 7 continua preferencial; validar PS 5.1 apenas onde bootstrap ou fluxo automatizado já depende dele.
-- Corrigir um guard compartilhado por vez, com regressão antes/depois — reduz escopo e cobre todos os chamadores.
-- Não alterar ZIP sem falha demonstrável; a proteção/extrator nativo já atende o fluxo atual.
-- Não expandir nesta onda para resolução física de junctions/symlinks; falta um caso reproduzido e isso exigiria solução Windows específica maior.
+- Remover pontes genéricas para código remoto em vez de manter hash opcional — hash calculado após download não autentica origem e a utilidade já existe fora do produto.
+- Remover BCDEDIT livre, clonagem `dd` e QoS enganoso em vez de criar allowlists/abstrações — alto risco, baixo valor e sem contrato confiável para Windows desktop comum.
+- Speedtest mantém somente CLI oficial já instalada ou winget com consentimento — cadeia de confiança curta e funcionalidade preservada.
+- Para operações destrutivas, colisão/falha preserva o original e avisa; nunca renomear/apagar como fallback de “desabilitar”.
 
 ## Next steps (ordered)
-1. Ler `modules/__navi__.md`, `modules/Otimizacao.psm1`, `tests/Otimizacao.Tests.ps1` e chamadores antes de editar; montar risco curto de registro, startups, limpeza, storage e serviços.
-2. Auditar primeiro `Set-DWord`, `Backup-Registro`, `Clean-Temp`, `Disable-/Enable-StartupByNumber` e seus efeitos/rollback em Windows 10/11 elevado; usar mocks e diretórios temporários, nunca alterações reais.
-3. Depois revisar operações administrativas em `Sync_Master.ps1`, começando pela entrada BCDEDIT livre; decidir restrição/remoção com teste.
-4. Revisar `Ativacao.psm1` (script remoto/hash opcional) e `Clonar-Disco` (semântica de volume/disco e `dd`) antes de manter esses recursos.
-5. Seguir para Rede/Hardware e menus; atualizar NAV, rodar `tools/Run-Checks.ps1`, commit e push em cada lote pequeno.
+1. Ler `__navi__.md`, `modules/__navi__.md` e auditar comandos nativos que ainda registram sucesso sem checar exit code: `Menu-Rede` (`ipconfig`/`netsh`) e energia/hibernação em `Sync_Master.ps1`/`Otimizacao.psm1`; usar AST/mocks, nunca alterar a rede real.
+2. Revisar ativação oficial: validar formato da product key, resolver `slmgr.vbs` via diretório do Windows e checar exit code sem expor a chave em logs.
+3. Auditar `Arquivos.psm1` por exclusões/reciclagem/permissões e `Criar-App` pelo caminho ps2exe hardcoded e falso sucesso em exit code não zero.
+4. Atualizar NAV após mover linhas, rodar `tools/Run-Checks.ps1`, smoke 5.1 quando relevante, commit e push por lote pequeno.
 
 ## Key files
-- `__navi__.md` — índice global atualizado.
-- `modules/__navi__.md` — mapa das funções; ponto inicial obrigatório.
-- `modules/Otimizacao.psm1` — próxima onda administrativa.
-- `tests/Otimizacao.Tests.ps1` — contratos existentes e local provável das regressões.
-- `Sync_Master.ps1:1011` — fluxo BCDEDIT com argumentos livres.
-- `modules/Ativacao.psm1:7` — execução remota a reavaliar.
-- `modules/Backup.psm1:125` — clonagem por `dd` a reavaliar.
+- `__navi__.md` — árvore global atualizada; ponto inicial obrigatório.
+- `modules/__navi__.md` — mapa exato de Rede, Hardware, Otimização e Arquivos.
+- `modules/Rede.psm1:287` — menu com comandos nativos ainda sem verificação de resultado.
+- `modules/Otimizacao.psm1:94` — `powercfg` ainda anuncia sucesso sem checar exit code.
+- `Sync_Master.ps1:721` — otimizações avançadas/hibernação; `Sync_Master.ps1:1091` — `Criar-App`.
+- `modules/Ativacao.psm1:7` — somente fluxos oficiais restantes.
 - `tools/Run-Checks.ps1` — gate completo.
 
 ## Open / blockers
-- Nenhum bloqueio.
-- Riscos ainda abertos: BCDEDIT livre, ativador remoto e clonagem por `dd`; não executar nenhum deles durante testes.
+- Nenhum bloqueio. Não executar alterações reais de rede, registro, serviços, energia ou hardware durante testes.
 
 ## Skills
-- ponytail: ler fluxo/chamadores e aplicar a menor correção causal, sem dependências ou abstrações especulativas.
+- ponytail: rastrear chamadores e aplicar a menor correção causal, sem dependências/abstrações especulativas.
 - navindex: ler mapas antes de explorar e regenerar cabeçalhos/mapas após mover linhas ou símbolos.
 
 ## Effort
-medium para o passo 1 — helpers administrativos têm efeitos externos e vários chamadores; subir para high se comportamento real do Windows contradizer os contratos ou exigir decisão destrutiva.
+medium para o passo 1 — vários comandos nativos e mensagens/logs compartilham o mesmo risco; subir para high se a semântica de exit code divergir entre Windows 10 e 11.
