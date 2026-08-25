@@ -1,11 +1,11 @@
-# __navi__ · `modules/` — 10 files → symbols at exact line numbers
-<!-- navindex · 2026-08-12 · DO NOT EDIT BY HAND; regen via navindex skill -->
+# __navi__ · `modules/` — 10 files → code symbols / text NAV ranges
+<!-- navindex · 2026-08-25 · DO NOT EDIT BY HAND; regen via navindex skill -->
 ↑ repo tree: [`../__navi__.md`](../__navi__.md)
 
 - **Arquivos.psm1** (507 ln)
   <sub>L24:Remove-ToRecycleBin  L38:Menu-GerenciamentoArquivos  L53:Encontrar-ArquivosDuplicados  L57:CONFIGURAÇÕES RÁPIDAS ===================  L243:Get-FastXxHash64  L259:Get-DuplicatesByHashLocal  L449:Verificar-IntegridadeArquivos  L473:Permissoes-Pasta</sub>
-- **Ativacao.psm1** (47 ln)
-  <sub>L7:Menu-Ativacao  L25:Mostrar-StatusAtivacao  L31:Instalar-ChaveProduto  L41:Ativar-Windows</sub>
+- **Ativacao.psm1** (48 ln)
+  <sub>L7:Menu-Ativacao  L26:Mostrar-StatusAtivacao  L32:Instalar-ChaveProduto  L42:Ativar-Windows</sub>
 - **Backup.psm1** (125 ln)
   <sub>L12:Get-ZipBackupPath  L29:Invoke-ZipBackup  L49:Invoke-ZipRestore  L76:Criar-BackupZIP  L92:Restaurar-BackupZIP</sub>
 - **Core.psm1** (147 ln)
@@ -22,4 +22,3 @@
   <sub>L26:Menu-DiagnosticoRede  L59:Test-TcpPort  L79:Testar-PortaTCP  L94:Ping-Sweep  L120:ConvertFrom-PortSpec  L141:Scan-PortasTCP  L160:Scan-ARP  L171:Descobrir-Hostnames  L200:Whois-Lookup  L210:Scan-Servicos  L223:Mostrar-Netstat  L228:Instalar-e-Testar-Speedtest  L231:Run-Ookla  L287:Menu-Rede  L311:Configurar-TcpAutoTuning</sub>
 - **Sync.psm1** (883 ln)
   <sub>L55:Salvar-Diretorios  L66:Menu-GerenciamentoDiretorios  L130:Selecionar-DiretorioDaLista  L168:ObterCaminhoPasta  L189:Iniciar-Sincronizacao  L269:Resolve-ShareToDiskInfoV2  L328:VerificarEspacoEmDiscoV2  L372:Get-TamanhoPastaBytesV2  L379:Comparar-EspacoVsOrigemV2  L419:Get-RobocopyArgs  L463:Get-RobocopyStatus  L481:Resolve-RobocopyTuning  L513:ConvertTo-TamanhoLegivel  L524:Format-RobocopyResumo  L575:Get-ExclusoesPerfil  L598:Test-OrigemEhPerfil  L615:Measure-ArvoreRapido  L639:Test-ParOrigemDestino  L677:Show-RobocopyResultado  L703:Start-RobocopyUnilateralSeguro  L769:Start-RobocopyEspelho  L831:Iniciar-SincronizacaoV2  L836:Agendar-TarefaSincronizacao</sub>
-

@@ -16,6 +16,7 @@ BeforeAll {
     )
     $script:LauncherAst = $launcherAst
     $script:LauncherText = Get-Content (Join-Path $root 'Sync_Master.ps1') -Raw
+    $script:AtivacaoText = Get-Content (Join-Path $root 'modules\Ativacao.psm1') -Raw
     $script:OtimizacaoText = Get-Content (Join-Path $root 'modules\Otimizacao.psm1') -Raw
     # Acoes definidas no launcher .ps1 (nao em modulo): nao resolvem no teste; sao toleradas.
     $script:LauncherLocais = @('Menu-Otimizacao','Criar-App')
@@ -57,6 +58,13 @@ Describe 'Get-MenuPrincipal (tabela)' {
 Describe 'Show-MenuPrincipal (render)' {
     It 'nao lanca ao renderizar a tabela' {
         { Show-MenuPrincipal -Entradas $script:Entradas 6>$null } | Should -Not -Throw
+    }
+}
+
+Describe 'Menu de ativacao' {
+    It 'mantem a opcao 4 oculta e limitada ao texto-placeholder' {
+        $script:AtivacaoText | Should -Match "(?m)^\s*`"4`"\s*\{\s*'irm xxxxx \| iex'\s*\}\s*$"
+        $script:AtivacaoText | Should -Not -Match 'Write-Host\s+"4\s*-'
     }
 }
 
