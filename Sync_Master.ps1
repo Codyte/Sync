@@ -3,22 +3,22 @@
 #   L32    PARTE 1: BLOCO DE PARÂMETROS ÚNICO ---
 #   L50    New-SyncMasterRelaunchArguments
 #   L76    Start-SyncMasterInPowerShell7
-#   L102   PARTE 1.1: Relançamento automático em PowerShell 7+ (compatível PS 5)
-#   L145   PARTE 2: REGIÃO CENTRALIZADA DE FUNÇÕES ---
-#   L220   Menu-Otimizacao
-#   L252   Criar-PontoRestauracao
-#   L337   Restaurar-PontoRestauracao
-#   L472   Menu-LimpezaDisco
-#   L527   Utilitários robustos ===============================================
-#   L548   Menu-ReparoSistema
-#   L576   Menu-Desempenho
-#   L641   Menu-GerenciarAgentes
-#   L679   Gerenciar-ServicoDeAgente
-#   L729   Menu-Ferramentas
-#   L757   Utilitário: enviar arquivo para a Lixeira (PS 5/7) ---
-#   L792   Criar-App
-#   L852   Aliases de verbo aprovado (retrocompat) ---
-#   L860   PARTE 3: LÓGICA DE EXECUÇÃO PRINCIPAL ---
+#   L103   PARTE 1.1: Relançamento automático em PowerShell 7+ (compatível PS 5)
+#   L146   PARTE 2: REGIÃO CENTRALIZADA DE FUNÇÕES ---
+#   L221   Menu-Otimizacao
+#   L253   Criar-PontoRestauracao
+#   L338   Restaurar-PontoRestauracao
+#   L473   Menu-LimpezaDisco
+#   L528   Utilitários robustos ===============================================
+#   L549   Menu-ReparoSistema
+#   L577   Menu-Desempenho
+#   L642   Menu-GerenciarAgentes
+#   L680   Gerenciar-ServicoDeAgente
+#   L730   Menu-Ferramentas
+#   L758   Utilitário: enviar arquivo para a Lixeira (PS 5/7) ---
+#   L793   Criar-App
+#   L862   Aliases de verbo aprovado (retrocompat) ---
+#   L870   PARTE 3: LÓGICA DE EXECUÇÃO PRINCIPAL ---
 # ======================= END NAV INDEX =======================
 
 # ===================================================================
@@ -78,7 +78,8 @@ function Start-SyncMasterInPowerShell7 {
     param(
         [Parameter(Mandatory)][string]$PwshPath,
         [Parameter(Mandatory)][string]$ScriptPath,
-        [Parameter(Mandatory)][System.Collections.IDictionary]$BoundParameters
+        [Parameter(Mandatory)][System.Collections.IDictionary]$BoundParameters,
+        [switch]$Elevate
     )
 
     $isAdmin = (
@@ -88,11 +89,11 @@ function Start-SyncMasterInPowerShell7 {
     $startSplat = @{
         FilePath         = $PwshPath
         ArgumentList     = New-SyncMasterRelaunchArguments -ScriptPath $ScriptPath -BoundParameters $BoundParameters
-        WorkingDirectory = (Get-Location)
+        WorkingDirectory = [IO.Path]::GetDirectoryName($ScriptPath)
         WindowStyle      = 'Normal'
         PassThru         = $true
     }
-    if ($isAdmin) { $startSplat['Verb'] = 'RunAs' }
+    if ($Elevate -or $isAdmin) { $startSplat['Verb'] = 'RunAs' }
 
     Start-Process @startSplat
 }
@@ -790,17 +791,15 @@ try {
 #endregion
 
 function Criar-App {
+    [CmdletBinding()]
     param (
-        [string]$IconFile
+        [string]$IconFile,
+        [string]$ScriptPath
     )
 
-    # Configuração
-    $caminhoDoExecutavel = "C:\Program Files (x86)\WindowsPowerShell\Modules\ps2exe.1.0.13\Win-PS2EXE.exe"
-
-    # Verifica se o executável existe
-    if (-not (Test-Path $caminhoDoExecutavel)) {
-        Write-Error "❌ Win-PS2EXE.exe não encontrado em '$caminhoDoExecutavel'."
-        Write-Error "Atualize o caminho na variável `$caminhoDoExecutavel`."
+    $converter = Get-Command -Name Invoke-ps2exe -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $converter) {
+        Write-Error "Invoke-ps2exe não foi encontrado. Instale o módulo PS2EXE para o usuário atual."
         Pause-Script
         return
     }
@@ -809,39 +808,50 @@ function Criar-App {
     # $MyInvocation.MyCommand.Path e' NULO dentro de uma funcao (reflete a invocacao da
     # funcao, nao do script) -> ChangeExtension($null) lanca e -inputFile fica vazio.
     # $PSCommandPath e' o caminho do .ps1 em execucao; fallback p/ a entry exposta no topo.
-    $scriptPath = if ($PSCommandPath) { $PSCommandPath } else { $env:SYNCMASTER_ENTRY }
-    if ([string]::IsNullOrWhiteSpace($scriptPath)) {
+    if ([string]::IsNullOrWhiteSpace($ScriptPath)) {
+        $ScriptPath = if ($PSCommandPath) { $PSCommandPath } else { $env:SYNCMASTER_ENTRY }
+    }
+    if ([string]::IsNullOrWhiteSpace($ScriptPath) -or -not (Test-Path -LiteralPath $ScriptPath -PathType Leaf)) {
         Write-Error "Não foi possível resolver o caminho do script para compilar."
         Pause-Script
         return
     }
-    $outputFile = [System.IO.Path]::ChangeExtension($scriptPath, ".exe")
-
-    Write-Host "`n--- COMPILANDO SCRIPT ---" -ForegroundColor Cyan
-    Write-Host "Executável: $caminhoDoExecutavel"
-    Write-Host "Origem:     $scriptPath"
-    Write-Host "Saída:      $outputFile"
-
-    # Argumentos
-    $argumentos = @(
-        "-inputFile", $scriptPath,
-        "-outputFile", $outputFile
+    $ScriptPath = (Resolve-Path -LiteralPath $ScriptPath).Path
+    $outputFile = [System.IO.Path]::ChangeExtension($ScriptPath, ".exe")
+    $tempOutput = Join-Path ([IO.Path]::GetDirectoryName($outputFile)) (
+        '.{0}-{1}.tmp.exe' -f [IO.Path]::GetFileNameWithoutExtension($outputFile), [guid]::NewGuid().ToString('N')
     )
 
+    Write-Host "`n--- COMPILANDO SCRIPT ---" -ForegroundColor Cyan
+    Write-Host "Conversor: $($converter.Source)"
+    Write-Host "Origem:     $ScriptPath"
+    Write-Host "Saída:      $outputFile"
+
+    $argumentos = @{
+        inputFile  = $ScriptPath
+        outputFile = $tempOutput
+    }
+
     # Ícone (opcional)
-    if ($IconFile -and (Test-Path $IconFile)) {
-        $argumentos += "-iconFile", $IconFile
+    if ($IconFile -and (Test-Path -LiteralPath $IconFile -PathType Leaf)) {
+        $argumentos.iconFile = (Resolve-Path -LiteralPath $IconFile).Path
         Write-Host "Ícone aplicado: $IconFile"
     }
 
     # Execução do PS2EXE
     try {
-        & $caminhoDoExecutavel @argumentos
+        & $converter @argumentos -ErrorAction Stop
+        if (-not $?) { throw 'O conversor retornou falha.' }
+        if (-not (Test-Path -LiteralPath $tempOutput -PathType Leaf)) { throw 'O conversor não criou o executável esperado.' }
+        Move-Item -LiteralPath $tempOutput -Destination $outputFile -Force -ErrorAction Stop
         Write-Host "✔️ SUCESSO: EXE criado em '$outputFile'!" -ForegroundColor Green
     }
     catch {
         Write-Error "❌ FALHA ao executar o conversor."
         Write-Error $_.Exception.Message
+    }
+    finally {
+        if (Test-Path -LiteralPath $tempOutput) { Remove-Item -LiteralPath $tempOutput -Force -ErrorAction SilentlyContinue }
     }
 
     Pause-Script
@@ -867,7 +877,7 @@ Set-Alias -Name New-App                   -Value Criar-App                    -F
 # 3.2: PowerShell 7 indisponível (o relançamento, quando o pwsh.exe EXISTE, já
 # acontece em PARTE 1.1 no topo do script). Se ainda estamos em PS 5.x aqui, é
 # porque o pwsh.exe NÃO foi encontrado: oferecer instalação automática (1 prompt S/N)
-# com cadeia de fallbacks (winget → MSI GitHub → aka.ms → zip portátil sem admin).
+# com cadeia de fallbacks (winget → MSI Microsoft/GitHub → ZIP oficial verificado).
 if ($PSVersionTable.PSVersion.Major -lt 7 -and -not $IsRelaunched) {
     if ($Acao -ne 'Menu') {
         # Modo automatizado (Tarefa Agendada): NUNCA bloquear em prompt — robocopy roda no PS5.
@@ -947,10 +957,27 @@ switch ($Acao.ToUpper()) {
 
     'MENU' {
         # Gate de admin: só o menu interativo exige elevação (faz reg/serviços/powercfg).
+        # O .cmd inicia sem interpolar caminhos em -Command; a elevação segura acontece aqui,
+        # com o comando codificado por New-SyncMasterRelaunchArguments.
         if (-not (Test-IsAdmin)) {
-            Write-Warning "ERRO: O menu interativo precisa ser executado como Administrador."
-            Read-Host "Pressione Enter para fechar."
-            exit
+            $currentPowerShell = Join-Path $PSHOME 'pwsh.exe'
+            if (-not (Test-Path -LiteralPath $currentPowerShell)) {
+                $currentPowerShell = (Get-Process -Id $PID).Path
+            }
+            Write-Host 'Solicitando permissao de Administrador para abrir o menu...' -ForegroundColor Yellow
+            try {
+                $null = Start-SyncMasterInPowerShell7 `
+                    -PwshPath $currentPowerShell `
+                    -ScriptPath $PSCommandPath `
+                    -BoundParameters $PSBoundParameters `
+                    -Elevate
+                return
+            }
+            catch {
+                Write-Warning ("Nao foi possivel elevar o menu: {0}" -f $_.Exception.Message)
+                Read-Host "Pressione Enter para fechar."
+                exit 1
+            }
         }
         # Menu data-driven (Fase C): a tabela vem de Get-MenuPrincipal (modules\Menu.psm1).
         # O dispatch fica AQUI (escopo do launcher) porque acoes como Menu-Otimizacao/

@@ -1,3 +1,16 @@
+<!-- ====================== BEGIN NAV INDEX ====================== -->
+<!-- NAV INDEX — auto-generated symbol map (refresh via the navindex skill) -->
+<!--   L14    Flow Tree Generator - Sync Master -->
+<!--   L16    Objective -->
+<!--   L21    Safety Notice -->
+<!--   L26    Run Generator -->
+<!--   L38    Run Verifier -->
+<!--   L45    Generated Reports -->
+<!--   L54    Validated Navigation Paths -->
+<!--   L58    Expected Remaining Items (`manual-review.md`) -->
+<!--   L65    Scope Policy -->
+<!-- ======================= END NAV INDEX ======================= -->
+
 # Flow Tree Generator - Sync Master
 
 ## Objective

@@ -4,8 +4,8 @@
 
 - **Arquivos.psm1** (507 ln)
   <sub>L24:Remove-ToRecycleBin  L38:Menu-GerenciamentoArquivos  L53:Encontrar-ArquivosDuplicados  L57:CONFIGURAÇÕES RÁPIDAS ===================  L243:Get-FastXxHash64  L259:Get-DuplicatesByHashLocal  L449:Verificar-IntegridadeArquivos  L473:Permissoes-Pasta</sub>
-- **Ativacao.psm1** (48 ln)
-  <sub>L7:Menu-Ativacao  L26:Mostrar-StatusAtivacao  L32:Instalar-ChaveProduto  L42:Ativar-Windows</sub>
+- **Ativacao.psm1** (97 ln)
+  <sub>L7:Menu-Ativacao  L26:Mostrar-StatusAtivacao  L32:Instalar-ChaveProduto  L42:Ati  L91:Ativar-Windows</sub>
 - **Backup.psm1** (125 ln)
   <sub>L12:Get-ZipBackupPath  L29:Invoke-ZipBackup  L49:Invoke-ZipRestore  L76:Criar-BackupZIP  L92:Restaurar-BackupZIP</sub>
 - **Core.psm1** (147 ln)
@@ -16,8 +16,8 @@
   <sub>L14:Get-MenuPrincipal  L41:Show-MenuPrincipal</sub>
 - **Otimizacao.psm1** (846 ln)
   <sub>L37:Pause-Local  L39:Clean-Temp  L87:STARTUPS (com seleção por números) =================================  L105:Get-Startups  L203:Parse-Selection  L244:Disable-StartupByNumber  L296:Enable-StartupByNumber  L347:Menu-Startups  L389:MEDICAO: observar antes/depois e guardar evidencia local ----------  L390:Get-ActivePowerPlan  L402:Get-DefenderStatus  L423:Get-PerformanceSnapshot  L522:Save-PerformanceSnapshot  L534:Compare-PerformanceSnapshot  L556:Compare-LatestPerformanceSnapshots  L577:Get-PageFileStatus  L599:New-PowerReport  L631:Invoke-DefenderQuickScan  L651:Invoke-DefenderPerformanceAnalysis  L679:Menu-DefenderPerformance  L710:ARMAZENAMENTO: Windows escolhe TRIM/Defrag pelo tipo do volume -------  L711:Invoke-StorageOptimization  L751:Storage-Maintenance  L779:Energia: Equilibrado por padrão; Alto Desempenho apenas sob demanda -- …</sub>
-- **PowerShellUpdate.psm1** (360 ln)
-  <sub>L24:Get-VersionFromReleaseUrl  L36:Get-LatestPowerShellVersion  L93:Invoke-WingetInstall  L120:Install-PowerShellFromMsi  L155:Start-PowerShellInstallation  L182:Find-PwshPath  L207:Install-PowerShell7  L260:Get-InstallerInfo  L286:Menu-AtualizacaoPowerShell</sub>
+- **PowerShellUpdate.psm1** (474 ln)
+  <sub>L31:Invoke-PowerShellRequest  L72:Get-VersionFromReleaseUrl  L84:Get-LatestPowerShellVersion  L141:Invoke-WingetInstall  L168:Install-PowerShellFromMsi  L203:Start-PowerShellInstallation  L229:Find-PwshPath  L254:Install-PowerShellPortable  L340:Install-PowerShell7  L374:Get-InstallerInfo  L400:Menu-AtualizacaoPowerShell</sub>
 - **Rede.psm1** (351 ln)
   <sub>L26:Menu-DiagnosticoRede  L59:Test-TcpPort  L79:Testar-PortaTCP  L94:Ping-Sweep  L120:ConvertFrom-PortSpec  L141:Scan-PortasTCP  L160:Scan-ARP  L171:Descobrir-Hostnames  L200:Whois-Lookup  L210:Scan-Servicos  L223:Mostrar-Netstat  L228:Instalar-e-Testar-Speedtest  L231:Run-Ookla  L287:Menu-Rede  L311:Configurar-TcpAutoTuning</sub>
 - **Sync.psm1** (883 ln)

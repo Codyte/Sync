@@ -1,0 +1,28 @@
+name: Publicar release estavel
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Empacotar o commit da tag e publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "/repos/${GITHUB_REPOSITORY}/zipball/${GITHUB_SHA}" > SyncMaster.zip
+          gh release create "${GITHUB_REF_NAME}" \
+            'SyncMaster.zip#Sync Master para Windows x64' \
+            --verify-tag \
+            --generate-notes

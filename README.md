@@ -4,7 +4,7 @@
 
 ### Ferramentas de sincronização, backup, diagnóstico e manutenção para Windows
 
-**PowerShell 5.1 compatível** · **PowerShell 7 recomendado** · **Windows 10/11**
+**PowerShell 5.1 no bootstrap** · **PowerShell 7 preferido** · **Windows 10/11 x64**
 
 </div>
 
@@ -46,7 +46,7 @@ Depois, você também pode iniciar o programa clicando duas vezes em **`Sync Mas
 irm https://raw.githubusercontent.com/Codyte/Sync/master/install.ps1 | iex
 ```
 
-Esse comando instala em `%LOCALAPPDATA%\SyncMaster\App` e abre o launcher. Nas próximas execuções, ele consulta o commit atual da `master`: se a instalação já for igual, apenas abre; se houver mudança, atualiza os arquivos sem apagar configurações e logs.
+Esse comando instala em `%LOCALAPPDATA%\SyncMaster\App` e abre o launcher. Nas próximas execuções, ele prefere a release estável mais recente, repete falhas transitórias de rede e confere tamanho e SHA256 do asset `SyncMaster.zip` publicados pela API do GitHub antes de atualizar. A versão anterior fica em `%LOCALAPPDATA%\SyncMaster\App.previous` e é restaurada se o novo launcher não puder ser iniciado. Enquanto ainda não houver nenhuma release, o bootstrap usa temporariamente um ZIP preso ao commit exato da `master`. Configurações e logs não são apagados.
 
 URL equivalente usando o domínio `github.com`:
 
@@ -72,13 +72,24 @@ Se ele não estiver instalado, o Sync Master tenta, nesta ordem:
 
 1. WinGet;
 2. MSI oficial com assinatura Microsoft validada;
-3. instalador oficial da Microsoft;
-4. instalação portátil no perfil do usuário quando não há privilégios administrativos.
+3. ZIP oficial versionado no perfil do usuário, depois de validar URL, tamanho e SHA256 publicados pelo GitHub.
+
+O terceiro método não exige privilégios administrativos e não executa outro script remoto. Depois da instalação, o launcher localiza o `pwsh.exe` mesmo antes de o `PATH` da sessão ser atualizado.
 
 Também é possível instalar pela [Microsoft Store](https://apps.microsoft.com/detail/9MZ1SNWT0N5D). Depois da instalação, feche e abra novamente o Sync Master.
 
 > [!NOTE]
 > A versão da Store é instalada por usuário. Para tarefas agendadas executadas como `SYSTEM`, o Sync Master usa o Windows PowerShell 5.1 quando não encontra uma instalação de sistema do PowerShell 7.
+
+## Criar aplicativo com PS2EXE
+
+A opção `APP` resolve o comando `Invoke-ps2exe` do módulo instalado, sem depender de uma pasta versionada. Instale o módulo uma vez no perfil do usuário:
+
+```powershell
+Install-Module PS2EXE -Scope CurrentUser
+```
+
+O executável anterior só é substituído depois que o conversor cria uma nova saída válida.
 
 ## Modos de uso
 
@@ -156,6 +167,7 @@ Documentação de referência:
 ## Segurança
 
 - O MSI baixado pelo bootstrap só é executado quando possui assinatura Authenticode válida da Microsoft.
+- Releases do Sync Master usam um asset de nome fixo e o SHA256 informado pela API do GitHub.
 - Ações destrutivas importantes exigem confirmação no modo interativo.
 - O modo de sincronização unilateral não usa `/MIR`.
 - Downloads automáticos ficam limitados ao instalador do próprio projeto, aos canais oficiais do PowerShell e, com confirmação, ao pacote exato `Ookla.Speedtest.CLI` via WinGet.
@@ -170,6 +182,7 @@ Sync/
 ├── Sync_Master.ps1              # launcher e menu principal
 ├── SyncMaster.psd1              # manifesto do módulo
 ├── Install-SyncMaster.ps1       # instalação opcional como módulo
+├── .github/workflows/release.yml # publica SyncMaster.zip ao receber uma tag v*
 ├── modules/                     # funcionalidades por domínio
 ├── tests/                       # testes Pester
 └── tools/                       # lint, testes e hooks locais
@@ -197,6 +210,17 @@ O gate executa PSScriptAnalyzer e todos os testes Pester. Para também reprovar 
 ```powershell
 .\tools\Run-Checks.ps1 -FailOnWarning
 ```
+
+### Publicar uma release estável
+
+Ative uma vez **Settings → General → Releases → Enable release immutability** no repositório. Depois publique uma tag versionada:
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+O workflow cria automaticamente `SyncMaster.zip`; o instalador passa a seguir essa release em vez da `master`.
 
 ## Solução de problemas
 

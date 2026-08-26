@@ -1,14 +1,16 @@
 ﻿# ====================== BEGIN NAV INDEX ======================
 # NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
-#   L24    Get-VersionFromReleaseUrl
-#   L36    Get-LatestPowerShellVersion
-#   L93    Invoke-WingetInstall
-#   L120   Install-PowerShellFromMsi
-#   L155   Start-PowerShellInstallation
-#   L182   Find-PwshPath
-#   L207   Install-PowerShell7
-#   L260   Get-InstallerInfo
-#   L286   Menu-AtualizacaoPowerShell
+#   L31    Invoke-PowerShellRequest
+#   L72    Get-VersionFromReleaseUrl
+#   L84    Get-LatestPowerShellVersion
+#   L141   Invoke-WingetInstall
+#   L168   Install-PowerShellFromMsi
+#   L203   Start-PowerShellInstallation
+#   L229   Find-PwshPath
+#   L254   Install-PowerShellPortable
+#   L340   Install-PowerShell7
+#   L374   Get-InstallerInfo
+#   L400   Menu-AtualizacaoPowerShell
 # ======================= END NAV INDEX =======================
 
 <#
@@ -20,6 +22,52 @@ Import-Module (Join-Path $PSScriptRoot 'Core.psm1') -DisableNameChecking  # SEM 
 # Último recurso quando api.github.com E aka.ms estão bloqueados (rede corporativa).
 # Não precisa estar sempre atualizada: só destrava o bootstrap; o pwsh instalado se atualiza depois.
 $script:PinnedPSVersion = '7.5.2'
+$script:GitHubHeaders = @{
+    Accept = 'application/vnd.github+json'
+    'X-GitHub-Api-Version' = '2022-11-28'
+    'User-Agent' = 'SyncMaster-PowerShell-Bootstrap'
+}
+
+function Invoke-PowerShellRequest {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][ValidateSet('Rest', 'Download', 'Web')][string]$Kind,
+        [Parameter(Mandatory)][string]$Uri,
+        [hashtable]$Headers,
+        [string]$OutFile,
+        [ValidateRange(1, 5)][int]$MaxAttempts = 3
+    )
+
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            $request = @{
+                Uri = $Uri
+                UseBasicParsing = $true
+                ErrorAction = 'Stop'
+                TimeoutSec = 120
+            }
+            if ($Headers) { $request.Headers = $Headers }
+            switch ($Kind) {
+                'Rest' { return Invoke-RestMethod @request }
+                'Web' { return Invoke-WebRequest @request }
+                'Download' {
+                    if ([string]::IsNullOrWhiteSpace($OutFile)) { throw 'OutFile e obrigatorio para download.' }
+                    $request.OutFile = $OutFile
+                    Invoke-WebRequest @request | Out-Null
+                    return
+                }
+            }
+        }
+        catch {
+            $statusCode = $null
+            try { $statusCode = [int]$_.Exception.Response.StatusCode } catch { $statusCode = $null }
+            if ($attempt -eq $MaxAttempts -or $statusCode -eq 404) { throw }
+            Write-Warning ("Falha de rede (tentativa {0}/{1}): {2}" -f $attempt, $MaxAttempts, $_.Exception.Message)
+            Start-Sleep -Seconds ([math]::Pow(2, $attempt - 1))
+        }
+    }
+}
 
 function Get-VersionFromReleaseUrl {
     <#
@@ -45,13 +93,13 @@ function Get-LatestPowerShellVersion {
         if ($Preview) {
             Write-Host "Buscando a versão PREVIEW mais recente no GitHub..." -ForegroundColor Yellow
             $apiUrl = "https://api.github.com/repos/PowerShell/PowerShell/releases"
-            $response = Invoke-RestMethod -Uri $apiUrl -UseBasicParsing
+            $response = Invoke-PowerShellRequest -Kind Rest -Uri $apiUrl -Headers $script:GitHubHeaders
             $latestTag = ($response | Where-Object { $_.prerelease -eq $true } | Select-Object -First 1).tag_name
         }
         else {
             Write-Host "Buscando a versão ESTÁVEL mais recente no GitHub..." -ForegroundColor Yellow
             $apiUrl = "https://api.github.com/repos/PowerShell/PowerShell/releases/latest"
-            $response = Invoke-RestMethod -Uri $apiUrl -UseBasicParsing
+            $response = Invoke-PowerShellRequest -Kind Rest -Uri $apiUrl -Headers $script:GitHubHeaders
             $latestTag = $response.tag_name
         }
         if ($latestTag) {
@@ -67,7 +115,7 @@ function Get-LatestPowerShellVersion {
 
     # Fallback 1: aka.ms redireciona para a página da release estável — a versão vai na URL final.
     try {
-        $resp = Invoke-WebRequest -Uri 'https://aka.ms/powershell-release?tag=stable' -UseBasicParsing -ErrorAction Stop
+        $resp = Invoke-PowerShellRequest -Kind Web -Uri 'https://aka.ms/powershell-release?tag=stable'
         # PS5 expõe a URL final em BaseResponse.ResponseUri; PS7 em RequestMessage.RequestUri
         $finalUrl = if ($resp.BaseResponse.PSObject.Properties['ResponseUri']) {
             $resp.BaseResponse.ResponseUri.AbsoluteUri
@@ -165,8 +213,7 @@ function Start-PowerShellInstallation {
     Write-Host "Baixando PowerShell versão $Version..." -ForegroundColor Yellow
     Write-Host "URL: $InstallerUrl"
     try {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $InstallerUrl -OutFile $InstallerPath -UseBasicParsing
+        Invoke-PowerShellRequest -Kind Download -Uri $InstallerUrl -Headers @{ 'User-Agent' = 'SyncMaster-PowerShell-Bootstrap' } -OutFile $InstallerPath
         Write-Host "Download concluído: $InstallerPath" -ForegroundColor Green
         if (-not (Install-PowerShellFromMsi -Path $InstallerPath)) {
             Remove-Item -LiteralPath $InstallerPath -Force -ErrorAction SilentlyContinue
@@ -204,12 +251,97 @@ function Find-PwshPath {
     return $null
 }
 
+function Install-PowerShellPortable {
+    <#
+      .SYNOPSIS  Instala um ZIP oficial e versionado do PowerShell no perfil do usuario.
+      .DESCRIPTION  Resolve o asset da release exata pela API do GitHub, valida URL,
+        tamanho e SHA256 publicado pelo proprio GitHub, e troca a pasta atomicamente.
+      .OUTPUTS  [bool]
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([Parameter(Mandatory)][ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version)
+
+    if (-not $env:LOCALAPPDATA) {
+        Write-Warning 'LOCALAPPDATA nao esta disponivel para a instalacao portatil.'
+        return $false
+    }
+
+    $assetName = "PowerShell-$Version-win-x64.zip"
+    $expectedUrl = "https://github.com/PowerShell/PowerShell/releases/download/v$Version/$assetName"
+    try {
+        $release = Invoke-PowerShellRequest `
+            -Kind Rest `
+            -Uri "https://api.github.com/repos/PowerShell/PowerShell/releases/tags/v$Version" `
+            -Headers $script:GitHubHeaders
+        $asset = @($release.assets | Where-Object { $_.name -eq $assetName }) | Select-Object -First 1
+        if (-not $asset) { throw "A release v$Version nao contem $assetName." }
+        if ([string]$asset.digest -notmatch '^sha256:([0-9a-fA-F]{64})$') { throw 'O asset nao publica um SHA256 valido.' }
+        $expectedHash = $Matches[1].ToLowerInvariant()
+        $expectedSize = [long]$asset.size
+        if ($expectedSize -le 0 -or $expectedSize -gt 250MB) { throw 'O asset publica um tamanho invalido.' }
+        if (-not ([string]$asset.browser_download_url).Equals($expectedUrl, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'A URL do asset oficial e inesperada.'
+        }
+    }
+    catch {
+        Write-Warning ("Nao foi possivel validar o ZIP oficial do PowerShell: {0}" -f $_.Exception.Message)
+        return $false
+    }
+
+    $parentDir = [IO.Path]::Combine($env:LOCALAPPDATA, 'Microsoft')
+    $destination = Join-Path $parentDir 'powershell'
+    $previousDir = Join-Path $parentDir 'powershell.previous'
+    $newDir = Join-Path $parentDir ('powershell.new-' + [guid]::NewGuid().ToString('N'))
+    $workDir = Join-Path ([IO.Path]::GetTempPath()) ('PowerShell-' + [guid]::NewGuid().ToString('N'))
+    $zipPath = Join-Path $workDir $assetName
+    $swapped = $false
+
+    try {
+        New-Item -ItemType Directory -Path $workDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
+        Write-Host "Baixando PowerShell $Version para o perfil do usuario..." -ForegroundColor Yellow
+        Invoke-PowerShellRequest -Kind Download -Uri $expectedUrl -Headers @{ 'User-Agent' = 'SyncMaster-PowerShell-Bootstrap' } -OutFile $zipPath
+        $actualSize = (Get-Item -LiteralPath $zipPath).Length
+        if ($actualSize -ne $expectedSize) { throw "Tamanho do ZIP nao confere ($actualSize de $expectedSize bytes)." }
+        $actualHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualHash -ne $expectedHash) { throw 'SHA256 do ZIP do PowerShell nao confere.' }
+
+        Expand-Archive -LiteralPath $zipPath -DestinationPath $newDir -Force
+        if (-not (Test-Path -LiteralPath (Join-Path $newDir 'pwsh.exe') -PathType Leaf)) {
+            throw 'O ZIP do PowerShell nao contem pwsh.exe.'
+        }
+
+        if (Test-Path -LiteralPath $previousDir) { Remove-Item -LiteralPath $previousDir -Recurse -Force }
+        if (Test-Path -LiteralPath $destination) { Move-Item -LiteralPath $destination -Destination $previousDir }
+        Move-Item -LiteralPath $newDir -Destination $destination
+        $swapped = $true
+        Write-Host "PowerShell $Version instalado em $destination" -ForegroundColor Green
+        return $true
+    }
+    catch {
+        if ($swapped -and (Test-Path -LiteralPath $previousDir)) {
+            if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Recurse -Force }
+            Move-Item -LiteralPath $previousDir -Destination $destination
+        }
+        elseif (-not (Test-Path -LiteralPath $destination) -and (Test-Path -LiteralPath $previousDir)) {
+            Move-Item -LiteralPath $previousDir -Destination $destination
+        }
+        Write-Warning ("Instalacao portatil do PowerShell falhou: {0}" -f $_.Exception.Message)
+        return $false
+    }
+    finally {
+        foreach ($path in $newDir, $workDir) {
+            if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+    }
+}
+
 function Install-PowerShell7 {
     <#
-      .SYNOPSIS  Instala o PowerShell 7 com cadeia de fallbacks — funciona em QUALQUER Windows.
+      .SYNOPSIS  Instala o PowerShell 7 com cadeia de fallbacks para Windows 10/11 x64.
       .DESCRIPTION  Ordem: a) winget (se existir); b) MSI do GitHub com assinatura validada
-        (precisa admin); c) script oficial aka.ms/install-powershell.ps1 (funciona sem winget);
-        d) sem admin → zip portátil em %LOCALAPPDATA%\Microsoft\powershell (sem elevação).
+        (precisa admin); c) ZIP oficial versionado e validado no perfil do usuario.
       .OUTPUTS  [bool] $true se o pwsh.exe está disponível ao final.
     #>
     [CmdletBinding()]
@@ -222,37 +354,19 @@ function Install-PowerShell7 {
     }
 
     $isAdmin = Test-IsAdmin
+    $version = Get-LatestPowerShellVersion -UsePinnedFallback
 
     # b) MSI direto do GitHub (assinatura Authenticode validada). MSI exige admin.
-    if ($isAdmin) {
-        $version = Get-LatestPowerShellVersion -UsePinnedFallback
-        if ($version) {
-            $info = Get-InstallerInfo -Version $version
-            if ($info) {
-                Start-PowerShellInstallation -Version $version -InstallerUrl $info.Url -InstallerPath $info.Path
-                if (Find-PwshPath) { return $true }
-            }
+    if ($isAdmin -and $version) {
+        $info = Get-InstallerInfo -Version $version
+        if ($info) {
+            Start-PowerShellInstallation -Version $version -InstallerUrl $info.Url -InstallerPath $info.Path
+            if (Find-PwshPath) { return $true }
         }
     }
 
-    # c/d) Script oficial da Microsoft — único caminho que funciona sem winget E sem admin.
-    try {
-        Write-Host "Tentando o instalador oficial (aka.ms/install-powershell.ps1)..." -ForegroundColor Yellow
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        $boot = [IO.Path]::Combine("$env:TEMP", 'install-powershell.ps1')
-        Invoke-WebRequest -Uri 'https://aka.ms/install-powershell.ps1' -OutFile $boot -UseBasicParsing
-        if ($isAdmin) {
-            & $boot -UseMSI -Quiet
-        } else {
-            # Sem admin: zip portátil no perfil do usuário — roda em qualquer máquina sem elevação
-            $dest = [IO.Path]::Combine("$env:LOCALAPPDATA", 'Microsoft', 'powershell')
-            Write-Host "Sem privilégios de administrador: instalando versão portátil em $dest" -ForegroundColor Yellow
-            & $boot -Destination $dest -AddToPath
-        }
-    }
-    catch {
-        Write-Warning ("Instalador oficial falhou: {0}" -f $_.Exception.Message)
-    }
+    # c) ZIP oficial: sem winget, sem MSI e sem executar um bootstrap remoto mutavel.
+    if ($version -and (Install-PowerShellPortable -Version $version)) { return $true }
 
     return [bool](Find-PwshPath)
 }
@@ -261,7 +375,7 @@ function Get-InstallerInfo {
     param($Version)
     try {
         $tagUrl = "https://api.github.com/repos/PowerShell/PowerShell/releases/tags/v$Version"
-        Invoke-RestMethod -Uri $tagUrl -UseBasicParsing -ErrorAction Stop | Out-Null
+        Invoke-PowerShellRequest -Kind Rest -Uri $tagUrl -Headers $script:GitHubHeaders | Out-Null
     } catch {
         Write-Warning "A versão '$Version' não foi encontrada no repositório do PowerShell."
         return $null
@@ -357,4 +471,4 @@ function Menu-AtualizacaoPowerShell {
     } while ($opcao.ToUpper() -ne 'Q')
 }
 
-Export-ModuleMember -Function Get-LatestPowerShellVersion, Get-VersionFromReleaseUrl, Start-PowerShellInstallation, Install-PowerShellFromMsi, Get-InstallerInfo, Invoke-WingetInstall, Find-PwshPath, Install-PowerShell7, Menu-AtualizacaoPowerShell
+Export-ModuleMember -Function Get-LatestPowerShellVersion, Get-VersionFromReleaseUrl, Start-PowerShellInstallation, Install-PowerShellFromMsi, Install-PowerShellPortable, Get-InstallerInfo, Invoke-WingetInstall, Find-PwshPath, Install-PowerShell7, Menu-AtualizacaoPowerShell

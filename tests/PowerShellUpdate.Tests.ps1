@@ -25,6 +25,10 @@ Describe 'Get-VersionFromReleaseUrl' {
 }
 
 Describe 'Get-LatestPowerShellVersion (fallback-chain)' {
+    BeforeEach {
+        Mock Start-Sleep {} -ModuleName PowerShellUpdate
+    }
+
     It 'cai na versao pinada quando GitHub e aka.ms estao inacessiveis (-UsePinnedFallback)' {
         Mock Invoke-RestMethod { throw 'bloqueado' } -ModuleName PowerShellUpdate
         Mock Invoke-WebRequest { throw 'bloqueado' } -ModuleName PowerShellUpdate
@@ -98,14 +102,52 @@ Describe 'Install-PowerShell7 (cadeia de fallbacks)' {
         Install-PowerShell7 | Should -BeTrue
         Should -Invoke Start-PowerShellInstallation -ModuleName PowerShellUpdate -Times 1
     }
-    It 'sem winget e sem admin, usa o script oficial com destino portatil (sem elevacao)' {
+    It 'sem winget e sem admin, usa o ZIP oficial verificado no perfil do usuario' {
         Mock Invoke-WingetInstall { $false } -ModuleName PowerShellUpdate
         Mock Test-IsAdmin         { $false } -ModuleName PowerShellUpdate
-        Mock Invoke-WebRequest    { throw 'offline' } -ModuleName PowerShellUpdate
+        Mock Get-LatestPowerShellVersion { '7.5.2' } -ModuleName PowerShellUpdate
+        Mock Install-PowerShellPortable { $true } -ModuleName PowerShellUpdate
         Mock Find-PwshPath        { $null }  -ModuleName PowerShellUpdate
-        Install-PowerShell7 3>$null | Should -BeFalse
+        Install-PowerShell7 3>$null | Should -BeTrue
         # sem admin, o caminho b (MSI GitHub) nao pode ser tentado
-        Should -Invoke Invoke-WebRequest -ModuleName PowerShellUpdate -Times 1
+        Should -Invoke Install-PowerShellPortable -ModuleName PowerShellUpdate -Times 1
+    }
+}
+
+Describe 'Install-PowerShellPortable' {
+    It 'instala o ZIP oficial somente quando tamanho e SHA256 conferem' {
+        $oldLocalAppData = $env:LOCALAPPDATA
+        $env:LOCALAPPDATA = Join-Path $TestDrive 'PortableLocalAppData'
+        $payload = Join-Path $TestDrive 'portable-payload'
+        New-Item -ItemType Directory -Path $payload -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $payload 'pwsh.exe') -Value 'fixture'
+        $fixtureZip = Join-Path $TestDrive 'PowerShell.zip'
+        Compress-Archive -Path (Join-Path $payload '*') -DestinationPath $fixtureZip
+        $sha256 = (Get-FileHash -LiteralPath $fixtureZip -Algorithm SHA256).Hash.ToLowerInvariant()
+
+        Mock Invoke-RestMethod {
+            [pscustomobject]@{ assets = @([pscustomobject]@{
+                name = 'PowerShell-7.5.2-win-x64.zip'
+                browser_download_url = 'https://github.com/PowerShell/PowerShell/releases/download/v7.5.2/PowerShell-7.5.2-win-x64.zip'
+                digest = "sha256:$sha256"
+                size = (Get-Item -LiteralPath $fixtureZip).Length
+            }) }
+        } -ModuleName PowerShellUpdate
+        Mock Invoke-WebRequest { Copy-Item -LiteralPath $fixtureZip -Destination $OutFile } -ModuleName PowerShellUpdate
+
+        try {
+            Install-PowerShellPortable -Version '7.5.2' | Should -BeTrue
+            $installedPwsh = Join-Path $env:LOCALAPPDATA 'Microsoft\powershell\pwsh.exe'
+            Test-Path $installedPwsh | Should -BeTrue
+
+            Set-Content -LiteralPath $installedPwsh -Value 'preservar'
+            $sha256 = '0' * 64
+            Install-PowerShellPortable -Version '7.5.2' 3>$null | Should -BeFalse
+            Get-Content -LiteralPath $installedPwsh | Should -Be 'preservar'
+        }
+        finally {
+            $env:LOCALAPPDATA = $oldLocalAppData
+        }
     }
 }
 
