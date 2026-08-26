@@ -29,10 +29,14 @@ Describe 'SyncMaster.psd1 (manifesto)' {
         Get-Command $_ -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
     }
 
-    It 'nao exporta nem mantem ativador remoto' {
+    It 'nao exporta o ativador remoto' {
         $manifest = Import-PowerShellDataFile -Path $script:Manifesto
         $manifest.FunctionsToExport | Should -Not -Contain 'Ativar-Crack'
-        Get-Content (Join-Path $root 'modules\Ativacao.psm1') -Raw | Should -Not -Match '(?i)\bAtivar-Crack\b'
+        # O ativador fica no modulo (decisao do dono do repo, 2026-08-26), mas continua PRIVADO:
+        # fora do manifesto e fora do Export-ModuleMember. Antes daqui o teste exigia que nem o
+        # nome aparecesse no arquivo.
+        $manifest.FunctionsToExport | Should -Not -Contain 'Ati'
+        (Get-Content (Join-Path $root 'modules\Ativacao.psm1') -Raw) | Should -Not -Match 'Export-ModuleMember[^\r\n]*\bAti\b'
     }
 
     It 'nao exporta nem anuncia clonagem bruta por dd' {

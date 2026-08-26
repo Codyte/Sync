@@ -62,9 +62,18 @@ Describe 'Show-MenuPrincipal (render)' {
 }
 
 Describe 'Menu de ativacao' {
-    It 'mantem a opcao 4 oculta e limitada ao texto-placeholder' {
-        $script:AtivacaoText | Should -Match "(?m)^\s*`"4`"\s*\{\s*'irm xxxxx \| iex'\s*\}\s*$"
+    It 'mantem a opcao 4 oculta no menu' {
+        $script:AtivacaoText | Should -Match '(?m)^\s*"4"\s*\{\s*Ati\s*\}\s*$'
         $script:AtivacaoText | Should -Not -Match 'Write-Host\s+"4\s*-'
+    }
+
+    # A opcao 4 (Microsoft Activation Scripts) e' deliberada e FICA — decisao do dono do repo,
+    # 2026-08-26; antes daqui o teste exigia um placeholder no lugar dela. O que este teste
+    # ainda trava e' o contorno: o ativador nao roda sem as guardas.
+    It 'nao executa o ativador remoto sem SHA256 e sem confirmacao explicita' {
+        $script:AtivacaoText | Should -Match '\bSHA256\b'
+        $script:AtivacaoText | Should -Match '\bConfirm-Action\b'
+        $script:AtivacaoText | Should -Match 'scriptblock\]::Create'   # nunca Invoke-Expression
     }
 }
 
