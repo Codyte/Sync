@@ -1,5 +1,5 @@
-# __navi__ · `modules/` — 10 files → code symbols / text NAV ranges
-<!-- navindex · 2026-08-25 · DO NOT EDIT BY HAND; regen via navindex skill -->
+# __navi__ · `modules/` — 11 files → code symbols / text NAV ranges
+<!-- navindex · 2026-08-26 · DO NOT EDIT BY HAND; regen via navindex skill -->
 ↑ repo tree: [`../__navi__.md`](../__navi__.md)
 
 - **Arquivos.psm1** (507 ln)
@@ -10,10 +10,12 @@
   <sub>L12:Get-ZipBackupPath  L29:Invoke-ZipBackup  L49:Invoke-ZipRestore  L76:Criar-BackupZIP  L92:Restaurar-BackupZIP</sub>
 - **Core.psm1** (147 ln)
   <sub>L10:Get-SyncMasterDataDir  L37:Pause-Script  L43:Confirm-Action  L53:Registrar-Log  L67:Start-SyncMasterLog  L84:Stop-SyncMasterLog  L94:Visualizar-Logs  L109:Start-SyncMaster  L121:Ensure-Dir  L133:Test-IsAdmin  L139:Require-Admin</sub>
+- **Ferramentas.psm1** (128 ln)
+  <sub>L17:Get-CatalogoFerramentas  L42:Show-CatalogoFerramentas  L63:Install-Ferramenta  L84:Menu-InstalarFerramentas</sub>
 - **Hardware.psm1** (251 ln)
   <sub>L7:Get-CpuRapido  L17:Get-MemUsoMB  L27:Get-DiscosInfo  L41:Monitorar-Recursos  L111:Merge-DiscoFisico  L133:Diagnostico-Hardware  L187:MAPA DISCO → PARTIÇÃO → VOLUME ---  L217:Get-CpuUsageRobusto</sub>
-- **Menu.psm1** (60 ln)
-  <sub>L14:Get-MenuPrincipal  L41:Show-MenuPrincipal</sub>
+- **Menu.psm1** (61 ln)
+  <sub>L14:Get-MenuPrincipal  L42:Show-MenuPrincipal</sub>
 - **Otimizacao.psm1** (846 ln)
   <sub>L37:Pause-Local  L39:Clean-Temp  L87:STARTUPS (com seleção por números) =================================  L105:Get-Startups  L203:Parse-Selection  L244:Disable-StartupByNumber  L296:Enable-StartupByNumber  L347:Menu-Startups  L389:MEDICAO: observar antes/depois e guardar evidencia local ----------  L390:Get-ActivePowerPlan  L402:Get-DefenderStatus  L423:Get-PerformanceSnapshot  L522:Save-PerformanceSnapshot  L534:Compare-PerformanceSnapshot  L556:Compare-LatestPerformanceSnapshots  L577:Get-PageFileStatus  L599:New-PowerReport  L631:Invoke-DefenderQuickScan  L651:Invoke-DefenderPerformanceAnalysis  L679:Menu-DefenderPerformance  L710:ARMAZENAMENTO: Windows escolhe TRIM/Defrag pelo tipo do volume -------  L711:Invoke-StorageOptimization  L751:Storage-Maintenance  L779:Energia: Equilibrado por padrão; Alto Desempenho apenas sob demanda -- …</sub>
 - **PowerShellUpdate.psm1** (474 ln)
