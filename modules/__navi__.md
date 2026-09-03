@@ -1,11 +1,11 @@
 # __navi__ · `modules/` — 11 files → code symbols / text NAV ranges
-<!-- navindex · 2026-08-26 · DO NOT EDIT BY HAND; regen via navindex skill -->
+<!-- navindex · 2026-09-03 · DO NOT EDIT BY HAND; regen via navindex skill -->
 ↑ repo tree: [`../__navi__.md`](../__navi__.md)
 
 - **Arquivos.psm1** (507 ln)
   <sub>L24:Remove-ToRecycleBin  L38:Menu-GerenciamentoArquivos  L53:Encontrar-ArquivosDuplicados  L57:CONFIGURAÇÕES RÁPIDAS ===================  L243:Get-FastXxHash64  L259:Get-DuplicatesByHashLocal  L449:Verificar-IntegridadeArquivos  L473:Permissoes-Pasta</sub>
-- **Ativacao.psm1** (97 ln)
-  <sub>L7:Menu-Ativacao  L26:Mostrar-StatusAtivacao  L32:Instalar-ChaveProduto  L42:Ati  L91:Ativar-Windows</sub>
+- **Ativacao.psm1** (982 ln)
+  <sub>L47:Get-WindowsDirectory  L56:Invoke-Slmgr  L109:Get-WpaWindows10  L125:Get-WpaSample  L148:Get-WpaLicenseStatusText  L162:Get-WpaDiagnostic  L211:Measure-WpaGrowth  L238:Test-WpaPsExec64File  L253:Find-WpaPsExec64  L274:Install-WpaPsExec64  L331:Invoke-WpaSystemCount  L381:Invoke-WpaActivationRepair  L395:Invoke-WpaLicenseFileRepair  L407:Get-WpaActivationState  L415:Get-WpaLicenseDetail  L426:Invoke-WpaLicensingDiag  L447:Export-WpaReport  L474:Backup-WpaRegistry  L495:Repair-WpaServices  L534:Clear-WpaKmsConfig  L543:Reset-WpaTokens  L590:Repair-WpaSystemFiles  L613:Uninstall-WpaProductKey  L623:Invoke-WpaRearm …</sub>
 - **Backup.psm1** (125 ln)
   <sub>L12:Get-ZipBackupPath  L29:Invoke-ZipBackup  L49:Invoke-ZipRestore  L76:Criar-BackupZIP  L92:Restaurar-BackupZIP</sub>
 - **Core.psm1** (147 ln)

@@ -149,3 +149,72 @@ Describe 'Menu principal (codigo remoto)' {
         $executor.Count | Should -Be 0
     }
 }
+
+Describe 'Arsenal de correcao WPA' {
+    # A escada so tem valor se estiver ordenada do menos ao mais invasivo e se
+    # parar assim que o Windows licenciar; caso contrario roda DISM a toa.
+    It 'o reparo guiado escalona e para no primeiro degrau que licenciar' {
+        $corpo = [regex]::Match($script:AtivacaoText, '(?ms)^function Invoke-WpaGuidedRepair \{.*?^\}').Value
+        $corpo | Should -Not -BeNullOrEmpty
+        $degraus = [regex]::Matches($corpo, "Nome\s*=\s*'([^']+)'") | ForEach-Object { $_.Groups[1].Value }
+        $degraus.Count | Should -BeGreaterThan 3
+        $degraus[0] | Should -Match 'servicos'
+        $degraus[-1] | Should -Match 'DISM'
+        $corpo | Should -Match 'if \(Get-WpaActivationState\)'
+    }
+
+    # Backup antes de mexer: tokens.dat, /upk e /rearm sao caminhos sem volta facil.
+    It 'as correcoes sem volta exportam a chave WPA antes' -ForEach @(
+        @{ Funcao = 'Reset-WpaTokens' }
+        @{ Funcao = 'Uninstall-WpaProductKey' }
+        @{ Funcao = 'Invoke-WpaRearm' }
+    ) {
+        $corpo = [regex]::Match($script:AtivacaoText, "(?ms)^function $Funcao \{.*?^\}").Value
+        $corpo | Should -Not -BeNullOrEmpty
+        $corpo | Should -Match 'Backup-WpaRegistry'
+    }
+
+    # tokens.dat corrompido e a causa real de boa parte dos casos; renomear
+    # preserva a evidencia e permite voltar atras copiando o .bak de volta.
+    It 'renomeia o tokens.dat em vez de apagar' {
+        $corpo = [regex]::Match($script:AtivacaoText, '(?ms)^function Reset-WpaTokens \{.*?^\}').Value
+        $corpo | Should -Match 'Rename-Item'
+        $corpo | Should -Not -Match 'Remove-Item'
+    }
+
+    It 'toda correcao exige elevacao' -ForEach @(
+        @{ Funcao = 'Backup-WpaRegistry' }
+        @{ Funcao = 'Repair-WpaServices' }
+        @{ Funcao = 'Clear-WpaKmsConfig' }
+        @{ Funcao = 'Reset-WpaTokens' }
+        @{ Funcao = 'Repair-WpaSystemFiles' }
+        @{ Funcao = 'Uninstall-WpaProductKey' }
+        @{ Funcao = 'Invoke-WpaRearm' }
+        @{ Funcao = 'Invoke-WpaGuidedRepair' }
+    ) {
+        $corpo = [regex]::Match($script:AtivacaoText, "(?ms)^function $Funcao \{.*?^\}").Value
+        $corpo | Should -Not -BeNullOrEmpty
+        $corpo | Should -Match '(?m)^\s*Require-Admin\s*$'
+    }
+
+    # slmgr /dlv, /dli e /xpr sao leitura pura: pedir elevacao ali afastaria o
+    # usuario do diagnostico, que e justamente o passo que deve ser barato.
+    It 'os verbos de leitura do slmgr nao pedem elevacao' {
+        $corpo = [regex]::Match($script:AtivacaoText, '(?ms)^function Invoke-Slmgr \{.*?^\}').Value
+        $corpo | Should -Match "notin @\('/dlv','/dli','/xpr'\)"
+    }
+
+    It 'o menu WPA despacha cada correcao do arsenal' -ForEach @(
+        @{ Opcao = '8'; Funcao = 'Repair-WpaServices' }
+        @{ Opcao = '11'; Funcao = 'Clear-WpaKmsConfig' }
+        @{ Opcao = '12'; Funcao = 'Reset-WpaTokens' }
+        @{ Opcao = '13'; Funcao = 'Repair-WpaSystemFiles' }
+        @{ Opcao = '14'; Funcao = 'Uninstall-WpaProductKey' }
+        @{ Opcao = '15'; Funcao = 'Invoke-WpaRearm' }
+        @{ Opcao = '16'; Funcao = 'Invoke-WpaGuidedRepair' }
+    ) {
+        $corpo = [regex]::Match($script:AtivacaoText, '(?ms)^function Menu-GerenciamentoWpa \{.*?^\}').Value
+        $bloco = [regex]::Match($corpo, "(?ms)'$Opcao'\s*\{.*?\r?\n                \}").Value
+        $bloco | Should -Match $Funcao
+    }
+}
