@@ -63,8 +63,12 @@ Describe 'Show-MenuPrincipal (render)' {
 
 Describe 'Menu de ativacao' {
     It 'mantem a opcao 4 oculta no menu' {
-        $script:AtivacaoText | Should -Match '(?m)^\s*"4"\s*\{\s*Ati\s*\}\s*$'
-        $script:AtivacaoText | Should -Not -Match 'Write-Host\s+"4\s*-'
+        # Escopo: o corpo de Menu-Ativacao. O menu WPA tem uma opcao 4 propria e visivel,
+        # entao a assercao de "oculta" nao pode varrer o modulo inteiro.
+        $corpo = [regex]::Match($script:AtivacaoText, '(?ms)^function Menu-Ativacao \{.*?^\}').Value
+        $corpo | Should -Not -BeNullOrEmpty
+        $corpo | Should -Match '(?m)^\s*[''"]4[''"]\s*\{\s*Ati\s*\}\s*$'
+        $corpo | Should -Not -Match 'Write-Host\s+[''"]4\s*[-.]'
     }
 
     # A opcao 4 (Microsoft Activation Scripts) e' deliberada e FICA — decisao do dono do repo,
@@ -74,6 +78,36 @@ Describe 'Menu de ativacao' {
         $script:AtivacaoText | Should -Match '\bSHA256\b'
         $script:AtivacaoText | Should -Match '\bConfirm-Action\b'
         $script:AtivacaoText | Should -Match 'scriptblock\]::Create'   # nunca Invoke-Expression
+    }
+}
+
+Describe 'Menu WPA (2 -> 2 -> 6)' {
+    It 'o submenu de reparo do sistema oferece e despacha a opcao 6' {
+        $corpo = [regex]::Match($script:LauncherText, '(?ms)^function Menu-ReparoSistema \{.*?^\}').Value
+        $corpo | Should -Not -BeNullOrEmpty
+        $corpo | Should -Match '(?m)^\s*Write-Host\s+"6\.'
+        $corpo | Should -Match "(?m)^\s*'6'\s*\{\s*Menu-GerenciamentoWpa\s*\}"
+    }
+
+    It 'o manifesto exporta o menu WPA' {
+        (Import-PowerShellDataFile -Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'SyncMaster.psd1')).FunctionsToExport |
+            Should -Contain 'Menu-GerenciamentoWpa'
+    }
+
+    # O ponto inteiro do modulo: diagnosticar sem destruir. Apagar HKLM\SYSTEM\WPA nao tem
+    # contrato oficial de reconstrucao; se alguem reintroduzir isso, este teste reprova.
+    It 'nunca remove a chave HKLM\SYSTEM\WPA' {
+        $script:AtivacaoText | Should -Not -Match '(?i)Remove-Item[^
+]*WPA'
+        $script:AtivacaoText | Should -Not -Match '(?i)reg(\.exe)?[^
+]*delete'
+    }
+
+    It 'so executa o PsExec depois de validar produto e assinatura Microsoft' {
+        $script:AtivacaoText | Should -Match 'Get-AuthenticodeSignature'
+        $script:AtivacaoText | Should -Match 'Sysinternals PsExec'
+        $corpo = [regex]::Match($script:AtivacaoText, '(?ms)^function Invoke-WpaSystemCount \{.*?^\}').Value
+        $corpo | Should -Match 'Test-WpaPsExec64File'
     }
 }
 

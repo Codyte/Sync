@@ -554,6 +554,7 @@ function Menu-ReparoSistema {
         Write-Host "3. Restaurar Imagem do Sistema (DISM RestoreHealth)"
         Write-Host "4. Verificar Disco por Erros (CHKDSK)"
         Write-Host "5. Ferramenta de Remoção de Software Mal-Intencionado (MRT)"
+        Write-Host "6. WPA / Proteção de Software (diagnóstico e reparo oficial)"
         Write-Host "Q. Voltar"
         $opcao = Read-Host "Sua escolha"
         switch ($opcao.ToUpper()) {
@@ -566,6 +567,7 @@ function Menu-ReparoSistema {
                 Pause-Script
             }
             '5' { Write-Host "Iniciando MRT..."; Start-Process "mrt.exe" -Wait; Pause-Script }
+            '6' { Menu-GerenciamentoWpa }
             'Q' { return }
             default {Write-Warning "Opção inválida."}
         }

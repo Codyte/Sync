@@ -59,7 +59,7 @@
         'Descobrir-Hostnames','Whois-Lookup','Scan-Servicos','Mostrar-Netstat','Instalar-e-Testar-Speedtest',
         'Menu-Rede','Configurar-TcpAutoTuning',
         # Ativacao
-        'Menu-Ativacao','Mostrar-StatusAtivacao','Instalar-ChaveProduto','Ativar-Windows',
+        'Menu-Ativacao','Mostrar-StatusAtivacao','Instalar-ChaveProduto','Ativar-Windows','Menu-GerenciamentoWpa',
         # PowerShellUpdate
         'Get-LatestPowerShellVersion','Start-PowerShellInstallation','Get-InstallerInfo','Invoke-WingetInstall',
         'Find-PwshPath','Install-PowerShell7','Menu-AtualizacaoPowerShell',
