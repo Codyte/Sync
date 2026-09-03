@@ -1,43 +1,45 @@
 # ====================== BEGIN NAV INDEX ======================
 # NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
-#   L55    Get-WindowsDirectory
-#   L64    Invoke-Slmgr
-#   L132   Get-WpaSupportedWindows
-#   L149   Get-WpaSample
-#   L173   Get-WpaLicenseStatusText
-#   L187   Get-WpaDiagnostic
-#   L244   Measure-WpaGrowth
-#   L275   Get-WpaHiveSize
-#   L292   Get-WpaAclSample
-#   L344   Test-WpaActivatorFootprint
-#   L408   Test-WpaPsExec64File
-#   L423   Find-WpaPsExec64
-#   L444   Install-WpaPsExec64
-#   L501   Invoke-WpaSystemProbe
-#   L608   Invoke-WpaActivationRepair
-#   L622   Invoke-WpaLicenseFileRepair
-#   L634   Get-WpaActivationState
-#   L655   Get-WpaLicenseDetail
-#   L666   Invoke-WpaLicensingDiag
-#   L687   Export-WpaReport
-#   L714   Backup-WpaRegistry
-#   L738   Repair-WpaServices
-#   L777   Clear-WpaKmsConfig
-#   L786   Reset-WpaTokens
-#   L833   Repair-WpaSystemFiles
-#   L856   Uninstall-WpaProductKey
-#   L866   Invoke-WpaRearm
-#   L875   Invoke-WpaPhoneActivation
-#   L902   Invoke-WpaGuidedRepair
-#   L952   Get-WpaReactivationRisk
-#   L1019  Invoke-WpaOfflineResetGuide
-#   L1115  Invoke-WpaTriage
-#   L1227  Menu-GerenciamentoWpa
-#   L1461  Menu-Ativacao
-#   L1480  Mostrar-StatusAtivacao
-#   L1489  Instalar-ChaveProduto
-#   L1515  Ati
-#   L1569  Ativar-Windows
+#   L57    Get-WindowsDirectory
+#   L66    Invoke-Slmgr
+#   L134   Get-WpaSupportedWindows
+#   L151   Get-WpaSample
+#   L175   Get-WpaLicenseStatusText
+#   L189   Get-WpaDiagnostic
+#   L246   Measure-WpaGrowth
+#   L277   Get-WpaHiveSize
+#   L294   Get-WpaAclSample
+#   L346   Test-WpaActivatorFootprint
+#   L410   Test-WpaPsExec64File
+#   L425   Find-WpaPsExec64
+#   L446   Install-WpaPsExec64
+#   L503   Invoke-WpaSystemProbe
+#   L610   Invoke-WpaActivationRepair
+#   L624   Invoke-WpaLicenseFileRepair
+#   L636   Get-WpaActivationState
+#   L657   Get-WpaLicenseDetail
+#   L668   Invoke-WpaLicensingDiag
+#   L689   Export-WpaReport
+#   L716   Backup-WpaRegistry
+#   L740   Repair-WpaServices
+#   L779   Clear-WpaKmsConfig
+#   L788   Reset-WpaTokens
+#   L835   Repair-WpaSystemFiles
+#   L858   Uninstall-WpaProductKey
+#   L868   Invoke-WpaRearm
+#   L877   Invoke-WpaPhoneActivation
+#   L904   Invoke-WpaGuidedRepair
+#   L954   Get-WpaReactivationRisk
+#   L1021  Get-WpaWinReStatus
+#   L1063  Test-WpaRemoteResetSafety
+#   L1167  Invoke-WpaOfflineResetGuide
+#   L1288  Invoke-WpaTriage
+#   L1400  Menu-GerenciamentoWpa
+#   L1634  Menu-Ativacao
+#   L1653  Mostrar-StatusAtivacao
+#   L1662  Instalar-ChaveProduto
+#   L1688  Ati
+#   L1742  Ativar-Windows
 # ======================= END NAV INDEX =======================
 
 <#
@@ -1016,6 +1018,152 @@ function Get-WpaReactivationRisk {
     }
 }
 
+function Get-WpaWinReStatus {
+    <#
+      Estado do ambiente de recuperacao lido do reagentc.exe. Fica separado do
+      gate porque e a unica peca que depende de um executavel externo: isolada
+      aqui, o gate continua testavel sem depender do WinRE da maquina de teste.
+      A deteccao e por caminho GLOBALROOT e nao por texto de status: o status do
+      reagentc e traduzido, o caminho nao, e ele so aparece quando o WinRE esta
+      de fato preparado e habilitado.
+    #>
+    [CmdletBinding()]
+    param()
+
+    $reagentc = Join-Path (Get-WindowsDirectory) 'System32\reagentc.exe'
+    if (-not (Test-Path -LiteralPath $reagentc -PathType Leaf)) {
+        return [PSCustomObject]@{ Habilitado = $false; Local = ''; Erro = "Arquivo nativo ausente: $reagentc" }
+    }
+
+    try {
+        $saida = & $reagentc '/info' 2>&1
+        $codigo = $LASTEXITCODE
+    }
+    catch {
+        return [PSCustomObject]@{ Habilitado = $false; Local = ''; Erro = $_.Exception.Message }
+    }
+
+    $texto = ($saida | Out-String)
+    if ($codigo -ne 0) {
+        # Sem elevacao o reagentc devolve acesso negado: nao e 'desabilitado',
+        # e 'nao sei', e um gate nao pode confundir os dois.
+        return [PSCustomObject]@{ Habilitado = $false; Local = ''
+            Erro = "reagentc /info falhou com codigo $codigo. $(($saida | Select-Object -Last 2) -join ' ')" }
+    }
+
+    $local = ''
+    if ($texto -match '(\\\?\GLOBALROOT\S+)') { $local = $Matches[1] }
+    [PSCustomObject]@{
+        Habilitado = -not [string]::IsNullOrWhiteSpace($local)
+        Local      = $local
+        Erro       = ''
+    }
+}
+
+function Test-WpaRemoteResetSafety {
+    <#
+      Gate do reset offline quando a maquina e alcancada so por acesso remoto.
+      Reiniciar para o WinRE tira a maquina da rede: se ela parar pedindo a chave
+      de recuperacao do BitLocker, ou apagar por falta de bateria no meio, nao ha
+      segunda chance sem alguem na frente do teclado.
+      Por isso o que nao da para confirmar entra como BLOQUEIO, nunca como aviso:
+      um 'provavelmente ok' aqui custa uma viagem de carro. Quem esta na frente da
+      maquina pode passar por cima com conhecimento de causa; o caminho remoto
+      nao pode.
+    #>
+    [CmdletBinding()]
+    param()
+
+    $null = Get-WpaSupportedWindows
+
+    $bloqueios = @()
+    $avisos    = @()
+    $elevado   = Test-IsAdmin
+    $unidade   = $env:SystemDrive
+    if ([string]::IsNullOrWhiteSpace($unidade)) { $unidade = 'C:' }
+
+    # 1. Criptografia do disco de sistema. Win32_EncryptableVolume cobre tanto o
+    #    BitLocker quanto o Device Encryption das edicoes Home, onde o modulo
+    #    BitLocker nem existe -- e onde a criptografia costuma estar ligada sem
+    #    o dono saber, que e justamente o caso que vira brick remoto.
+    $criptografia = 'Desconhecido'
+    if (-not $elevado) {
+        $bloqueios += 'Sem elevacao nao da para ler a criptografia do disco. Reabra o Sync Master como administrador.'
+    }
+    else {
+        try {
+            $volume = Get-CimInstance -Namespace 'root\cimv2\security\MicrosoftVolumeEncryption' `
+                -ClassName 'Win32_EncryptableVolume' -Filter "DriveLetter = '$unidade'" -ErrorAction Stop |
+                Select-Object -First 1
+            if (-not $volume) {
+                $criptografia = 'Ausente'
+            }
+            elseif ([int]$volume.ConversionStatus -ne 0 -or [int]$volume.ProtectionStatus -eq 1) {
+                # Suspenso continua criptografado: a suspensao expira sozinha e o
+                # WinRE pode pedir a chave mesmo assim. Volume cifrado bloqueia.
+                $criptografia = 'Ligada'
+                $bloqueios += "O disco $unidade esta criptografado (protecao $($volume.ProtectionStatus), conversao $($volume.ConversionStatus)). O WinRE pode exigir a chave de recuperacao e a maquina fica inacessivel."
+            }
+            elseif ([int]$volume.ProtectionStatus -eq 2) {
+                $bloqueios += "Estado de criptografia de $unidade indeterminado. Confirme antes de reiniciar para o WinRE."
+            }
+            else { $criptografia = 'Desligada' }
+        }
+        catch {
+            $bloqueios += "Nao foi possivel ler a criptografia de $unidade ($($_.Exception.Message)). Sem essa resposta o reinicio remoto nao e seguro."
+        }
+    }
+
+    # 2. WinRE. Reiniciar para um ambiente de recuperacao que nao existe deixa a
+    #    maquina fora do ar sem nem chegar ao lugar onde o trabalho aconteceria.
+    $winre = $null
+    try {
+        $winre = Get-WpaWinReStatus
+        if (-not $winre.Habilitado) {
+            $bloqueios += "Ambiente de recuperacao indisponivel ou nao confirmado. $($winre.Erro)".Trim()
+        }
+    }
+    catch { $bloqueios += "Nao foi possivel consultar o ambiente de recuperacao: $($_.Exception.Message)" }
+
+    # 3. Energia. Notebook na bateria que apaga no meio da limpeza volta com o
+    #    hive pela metade e sem ninguem por perto para ligar de novo.
+    $energia = 'Sem bateria (desktop)'
+    try {
+        $bateria = Get-CimInstance -ClassName Win32_Battery -ErrorAction Stop | Select-Object -First 1
+        if ($bateria) {
+            $carga = [int]$bateria.EstimatedChargeRemaining
+            if ([int]$bateria.BatteryStatus -eq 2) {
+                $energia = "Na tomada ($carga%)"
+                if ($carga -lt 50) { $avisos += "Bateria em $carga%. Carregue mais antes de comecar." }
+            }
+            else {
+                $energia = "Na bateria ($carga%)"
+                $bloqueios += "Notebook na bateria ($carga%). Ligue na tomada antes de reiniciar para o WinRE."
+            }
+        }
+    }
+    catch { $avisos += "Estado da bateria indisponivel: $($_.Exception.Message)" }
+
+    # 4. A sessao atual ser remota nao bloqueia nada -- e a premissa do caminho.
+    #    Entra no relatorio porque muda o que o operador precisa ter em maos.
+    $remota = ($env:SESSIONNAME -like 'RDP-*') -or -not [string]::IsNullOrWhiteSpace($env:SSH_CLIENT)
+    if ($remota) {
+        $avisos += 'Sessao remota: ao reiniciar para o WinRE voce perde o acesso ate a maquina voltar sozinha ao Windows.'
+    }
+
+    [PSCustomObject]@{
+        Seguro       = ($bloqueios.Count -eq 0)
+        Bloqueios    = $bloqueios
+        Avisos       = $avisos
+        Criptografia = $criptografia
+        WinRE        = $(if ($winre) { $winre.Habilitado } else { $false })
+        WinRELocal   = $(if ($winre) { $winre.Local } else { '' })
+        Energia      = $energia
+        SessaoRemota = $remota
+        Elevado      = $elevado
+    }
+}
+
 function Invoke-WpaOfflineResetGuide {
     <#
       Guia do reset offline do licenciamento (procedimento da massgrave.dev, que
@@ -1090,10 +1238,35 @@ function Invoke-WpaOfflineResetGuide {
     Write-Host ''
     Write-Host 'O Sync Master nao baixa nem executa o rearm.cmd: a aquisicao e a execucao sao suas.' -ForegroundColor DarkGray
 
+    # Gate do reinicio: disco criptografado, WinRE ausente e notebook na bateria
+    # sao os tres jeitos de a maquina nao voltar. Aparecem ANTES da confirmacao.
+    $seguranca = $null
+    try {
+        $seguranca = Test-WpaRemoteResetSafety
+        Write-Host ''
+        Write-Host '--- ANTES DE REINICIAR ---' -ForegroundColor Cyan
+        Write-Host "  Criptografia do disco:   $($seguranca.Criptografia)"
+        Write-Host "  Ambiente de recuperacao: $(if ($seguranca.WinRE) { 'disponivel' } else { 'indisponivel ou nao confirmado' })"
+        Write-Host "  Energia:                 $($seguranca.Energia)"
+        foreach ($aviso in $seguranca.Avisos) { Write-Host "  aviso: $aviso" -ForegroundColor Yellow }
+        foreach ($bloqueio in $seguranca.Bloqueios) { Write-Host "  BLOQUEIO: $bloqueio" -ForegroundColor Red }
+    }
+    catch { Write-Warning "Verificacao de seguranca do reinicio indisponivel: $($_.Exception.Message)" }
+
     if (-not $Reiniciar) { return $risco }
 
     if ($risco -and $risco.Risco -in 'Alto','Desconhecido') {
         Write-Warning "Risco $($risco.Risco): $($risco.Recomendacao)"
+    }
+    # Bloqueio nao e veto para quem esta na frente da maquina -- ai da para digitar
+    # a chave de recuperacao. Para quem esta remoto e o fim da linha, e a pergunta
+    # diz isso com todas as letras em vez de esconder atras de um aviso qualquer.
+    if (-not $seguranca -or -not $seguranca.Seguro) {
+        Write-Warning 'Ha bloqueios acima. Nesta condicao a maquina pode nao voltar sozinha ao Windows.'
+        if (-not (Confirm-Action 'Prosseguir mesmo com os bloqueios (voce esta na frente DESTA maquina)?')) {
+            Write-Host 'Cancelado. Nada foi alterado.' -ForegroundColor DarkGray
+            return $risco
+        }
     }
     Write-Warning 'Reiniciar agora fecha os programas abertos a forca e descarta o que nao estiver salvo.'
     if (-not (Confirm-Action 'Guardar o relatorio e reiniciar AGORA para o ambiente de recuperacao?')) {

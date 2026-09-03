@@ -487,6 +487,10 @@ Describe 'Invoke-WpaOfflineResetGuide' {
         Mock -ModuleName Ativacao Confirm-Action { $true }
         Mock -ModuleName Ativacao Start-Process { }
         Mock -ModuleName Ativacao Get-WindowsDirectory { 'C:\Windows' }
+        Mock -ModuleName Ativacao Test-WpaRemoteResetSafety {
+            [PSCustomObject]@{ Seguro = $true; Bloqueios = @(); Avisos = @()
+                Criptografia = 'Desligada'; WinRE = $true; Energia = 'Sem bateria (desktop)' }
+        }
     }
 
     # Sem -Reiniciar e material de leitura: nao pode desligar a maquina de ninguem.
@@ -522,6 +526,98 @@ Describe 'Invoke-WpaOfflineResetGuide' {
         { InModuleScope Ativacao { Invoke-WpaOfflineResetGuide } } | Should -Not -Throw
     }
 }
+
+Describe 'Test-WpaRemoteResetSafety' {
+    BeforeEach {
+        Mock -ModuleName Ativacao Get-WpaSupportedWindows { [PSCustomObject]@{ Caption = 'Windows 10 Pro' } }
+        Mock -ModuleName Ativacao Test-IsAdmin { $true }
+        Mock -ModuleName Ativacao Get-WpaWinReStatus {
+            [PSCustomObject]@{ Habilitado = $true; Local = '\?\GLOBALROOT\device\harddisk0\partition4\Recovery\WindowsRE'; Erro = '' }
+        }
+        Mock -ModuleName Ativacao Get-CimInstance {
+            [PSCustomObject]@{ ProtectionStatus = 0; ConversionStatus = 0 }
+        } -ParameterFilter { $ClassName -eq 'Win32_EncryptableVolume' }
+        Mock -ModuleName Ativacao Get-CimInstance { } -ParameterFilter { $ClassName -eq 'Win32_Battery' }
+    }
+
+    It 'aprova quando o disco esta limpo, o WinRE existe e nao ha bateria' {
+        $resultado = InModuleScope Ativacao { Test-WpaRemoteResetSafety }
+
+        $resultado.Seguro | Should -BeTrue
+        $resultado.Bloqueios | Should -BeNullOrEmpty
+        $resultado.Criptografia | Should -Be 'Desligada'
+    }
+
+    # O caso que motiva o gate: reiniciar para o WinRE com o disco cifrado pode
+    # parar na tela da chave de recuperacao, longe de qualquer teclado.
+    It 'bloqueia com o disco criptografado' {
+        Mock -ModuleName Ativacao Get-CimInstance {
+            [PSCustomObject]@{ ProtectionStatus = 1; ConversionStatus = 1 }
+        } -ParameterFilter { $ClassName -eq 'Win32_EncryptableVolume' }
+
+        $resultado = InModuleScope Ativacao { Test-WpaRemoteResetSafety }
+
+        $resultado.Seguro | Should -BeFalse
+        $resultado.Criptografia | Should -Be 'Ligada'
+        ($resultado.Bloqueios -join ' ') | Should -Match 'criptografado'
+    }
+
+    # BitLocker suspenso continua cifrado e a suspensao expira sozinha: tratar
+    # 'protecao desligada' como seguro seria ler o campo errado.
+    It 'bloqueia com o BitLocker suspenso (cifrado, protecao desligada)' {
+        Mock -ModuleName Ativacao Get-CimInstance {
+            [PSCustomObject]@{ ProtectionStatus = 0; ConversionStatus = 1 }
+        } -ParameterFilter { $ClassName -eq 'Win32_EncryptableVolume' }
+
+        (InModuleScope Ativacao { Test-WpaRemoteResetSafety }).Seguro | Should -BeFalse
+    }
+
+    # Sem elevacao a consulta de criptografia volta vazia. Vazio nao e 'nao tem'.
+    It 'sem elevacao bloqueia em vez de assumir disco limpo' {
+        Mock -ModuleName Ativacao Test-IsAdmin { $false }
+
+        $resultado = InModuleScope Ativacao { Test-WpaRemoteResetSafety }
+
+        $resultado.Seguro | Should -BeFalse
+        $resultado.Criptografia | Should -Be 'Desconhecido'
+        ($resultado.Bloqueios -join ' ') | Should -Match 'elevacao'
+    }
+
+    It 'um erro ao consultar a criptografia bloqueia, nao passa batido' {
+        Mock -ModuleName Ativacao Get-CimInstance { throw 'Acesso negado' } `
+            -ParameterFilter { $ClassName -eq 'Win32_EncryptableVolume' }
+
+        (InModuleScope Ativacao { Test-WpaRemoteResetSafety }).Seguro | Should -BeFalse
+    }
+
+    It 'bloqueia sem ambiente de recuperacao' {
+        Mock -ModuleName Ativacao Get-WpaWinReStatus {
+            [PSCustomObject]@{ Habilitado = $false; Local = ''; Erro = 'reagentc /info falhou com codigo 1' }
+        }
+
+        $resultado = InModuleScope Ativacao { Test-WpaRemoteResetSafety }
+
+        $resultado.Seguro | Should -BeFalse
+        ($resultado.Bloqueios -join ' ') | Should -Match 'recuperacao'
+    }
+
+    It 'bloqueia notebook na bateria e aprova na tomada' {
+        Mock -ModuleName Ativacao Get-CimInstance {
+            [PSCustomObject]@{ BatteryStatus = 1; EstimatedChargeRemaining = 80 }
+        } -ParameterFilter { $ClassName -eq 'Win32_Battery' }
+        $naBateria = InModuleScope Ativacao { Test-WpaRemoteResetSafety }
+
+        Mock -ModuleName Ativacao Get-CimInstance {
+            [PSCustomObject]@{ BatteryStatus = 2; EstimatedChargeRemaining = 80 }
+        } -ParameterFilter { $ClassName -eq 'Win32_Battery' }
+        $naTomada = InModuleScope Ativacao { Test-WpaRemoteResetSafety }
+
+        $naBateria.Seguro | Should -BeFalse
+        ($naBateria.Bloqueios -join ' ') | Should -Match 'tomada'
+        $naTomada.Seguro | Should -BeTrue
+    }
+}
+
 AfterAll {
     Remove-Variable -Name WpaTeste -Scope Global -ErrorAction SilentlyContinue
 }

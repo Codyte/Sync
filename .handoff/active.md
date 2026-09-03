@@ -74,8 +74,10 @@ cd /c/Scripts/Script_Sync/Sync; echo "=== 1 git ==="; git log -3 --oneline; git 
   a sessão **não é elevada** — `reagentc /info` e `Get-BitLockerVolume` deram acesso negado. Todo
   o passo 1 tem de ser validado por mock, e o staging do `winre.wim` (passos 2-3) precisa de uma
   VM descartável antes de chegar perto de máquina de cliente.
-- **Pergunta em aberto para o dono:** a máquina remota de 340k tem BitLocker? É o único fato que
-  decide se o caminho WinRE é viável nela ou se sobra só o repair install.
+- **Respondida (2026-09-03, pelo dono): a máquina remota de 340k NÃO tem BitLocker.** O caminho
+  WinRE fica viável nela. O relato é do dono, não medição: `Test-WpaRemoteResetSafety` continua
+  conferindo na própria máquina e bloqueando se não conseguir confirmar — Device Encryption em
+  Home costuma estar ligado sem o dono saber.
 - Sessão em sessão 0 (VS Code tunnel) falha ao instalar MSIX pelo winget (`0x80070520`).
 
 ## Skills
