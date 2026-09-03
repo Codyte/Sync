@@ -1,37 +1,41 @@
 # ====================== BEGIN NAV INDEX ======================
 # NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
-#   L48    Get-WindowsDirectory
-#   L57    Invoke-Slmgr
-#   L125   Get-WpaSupportedWindows
-#   L142   Get-WpaSample
-#   L165   Get-WpaLicenseStatusText
-#   L179   Get-WpaDiagnostic
-#   L228   Measure-WpaGrowth
-#   L255   Test-WpaPsExec64File
-#   L270   Find-WpaPsExec64
-#   L291   Install-WpaPsExec64
-#   L348   Invoke-WpaSystemProbe
-#   L428   Invoke-WpaActivationRepair
-#   L442   Invoke-WpaLicenseFileRepair
-#   L454   Get-WpaActivationState
-#   L475   Get-WpaLicenseDetail
-#   L486   Invoke-WpaLicensingDiag
-#   L507   Export-WpaReport
-#   L534   Backup-WpaRegistry
-#   L558   Repair-WpaServices
-#   L597   Clear-WpaKmsConfig
-#   L606   Reset-WpaTokens
-#   L653   Repair-WpaSystemFiles
-#   L676   Uninstall-WpaProductKey
-#   L686   Invoke-WpaRearm
-#   L695   Invoke-WpaPhoneActivation
-#   L722   Invoke-WpaGuidedRepair
-#   L772   Menu-GerenciamentoWpa
-#   L977   Menu-Ativacao
-#   L996   Mostrar-StatusAtivacao
-#   L1005  Instalar-ChaveProduto
-#   L1031  Ati
-#   L1085  Ativar-Windows
+#   L53    Get-WindowsDirectory
+#   L62    Invoke-Slmgr
+#   L130   Get-WpaSupportedWindows
+#   L147   Get-WpaSample
+#   L171   Get-WpaLicenseStatusText
+#   L185   Get-WpaDiagnostic
+#   L242   Measure-WpaGrowth
+#   L273   Get-WpaHiveSize
+#   L290   Get-WpaAclSample
+#   L342   Test-WpaActivatorFootprint
+#   L406   Test-WpaPsExec64File
+#   L421   Find-WpaPsExec64
+#   L442   Install-WpaPsExec64
+#   L499   Invoke-WpaSystemProbe
+#   L606   Invoke-WpaActivationRepair
+#   L620   Invoke-WpaLicenseFileRepair
+#   L632   Get-WpaActivationState
+#   L653   Get-WpaLicenseDetail
+#   L664   Invoke-WpaLicensingDiag
+#   L685   Export-WpaReport
+#   L712   Backup-WpaRegistry
+#   L736   Repair-WpaServices
+#   L775   Clear-WpaKmsConfig
+#   L784   Reset-WpaTokens
+#   L831   Repair-WpaSystemFiles
+#   L854   Uninstall-WpaProductKey
+#   L864   Invoke-WpaRearm
+#   L873   Invoke-WpaPhoneActivation
+#   L900   Invoke-WpaGuidedRepair
+#   L950   Invoke-WpaTriage
+#   L1062  Menu-GerenciamentoWpa
+#   L1286  Menu-Ativacao
+#   L1305  Mostrar-StatusAtivacao
+#   L1314  Instalar-ChaveProduto
+#   L1340  Ati
+#   L1394  Ativar-Windows
 # ======================= END NAV INDEX =======================
 
 <#
@@ -42,6 +46,7 @@
 Import-Module (Join-Path $PSScriptRoot 'Core.psm1') -DisableNameChecking
 
 $script:WpaRegistryPath = 'Registry::HKEY_LOCAL_MACHINE\SYSTEM\WPA'
+$script:WpaHiveSubPath = 'SYSTEM\WPA'
 $script:PsExec64DownloadUri = 'https://live.sysinternals.com/PsExec64.exe'
 $script:PsExec64RequestedPath = 'C:\Softwares Instaladores\SysInternals\non_usage\PsExec64.exe'
 
@@ -140,21 +145,22 @@ function Get-WpaSupportedWindows {
 }
 
 function Get-WpaSample {
-    if (-not (Test-Path -LiteralPath $script:WpaRegistryPath)) {
-        throw 'A chave HKLM\SYSTEM\WPA nao foi encontrada.'
-    }
-
-    $readErrors = @()
-    $subkeys = @(Get-ChildItem -LiteralPath $script:WpaRegistryPath -ErrorAction SilentlyContinue -ErrorVariable +readErrors)
-    if ($readErrors.Count -gt 0) {
-        throw "Nao foi possivel enumerar toda a chave WPA: $($readErrors[0].Exception.Message)"
-    }
+    <#
+      SubKeyCount sai do proprio hive: e instantaneo e nao depende da ACL de cada
+      subchave. Enumerar com Get-ChildItem levava minutos numa arvore inchada, e
+      era esse atraso que inflava a janela real de Measure-WpaGrowth -- o objeto
+      dizia 300 segundos enquanto a medicao tinha durado onze minutos.
+    #>
+    $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($script:WpaHiveSubPath)
+    if (-not $key) { throw 'A chave HKLM\SYSTEM\WPA nao foi encontrada.' }
+    try { $subkeyCount = [int]$key.SubKeyCount }
+    finally { $key.Dispose() }
 
     $service = Get-Service -Name sppsvc -ErrorAction SilentlyContinue
     $process = Get-Process -Name sppsvc -ErrorAction SilentlyContinue | Select-Object -First 1
     [PSCustomObject]@{
         CapturedAt       = [DateTimeOffset]::Now
-        SubkeyCount      = $subkeys.Count
+        SubkeyCount      = $subkeyCount
         ServiceStatus    = if ($service) { [string]$service.Status } else { 'Nao encontrado' }
         ServiceStartType = if ($service) { [string]$service.StartType } else { $null }
         ProcessId        = if ($process) { [int]$process.Id } else { $null }
@@ -210,12 +216,20 @@ function Get-WpaDiagnostic {
         Write-Verbose "Eventos Security-SPP indisponiveis: $($_.Exception.Message)"
     }
 
+    # Sinal barato e independente da contagem: o hive inchado aparece em disco
+    # mesmo quando a arvore nao da para enumerar. Sem elevacao, o arquivo nao e
+    # nem listavel, e ai o campo fica nulo em vez de derrubar o diagnostico.
+    $hiveMegaBytes = $null
+    try { $hiveMegaBytes = (Get-WpaHiveSize).MegaBytes }
+    catch { Write-Verbose "Tamanho do hive SYSTEM indisponivel: $($_.Exception.Message)" }
+
     [PSCustomObject]@{
         Windows          = $os.Caption
         Version          = $os.Version
         Build            = [int]$os.BuildNumber
         CapturedAt       = $sample.CapturedAt
         WpaSubkeyCount   = $sample.SubkeyCount
+        HiveMegaBytes    = $hiveMegaBytes
         SppsvcStatus     = $sample.ServiceStatus
         SppsvcStartType  = $sample.ServiceStartType
         SppsvcProcessId  = $sample.ProcessId
@@ -234,21 +248,158 @@ function Measure-WpaGrowth {
     Start-Sleep -Seconds $Seconds
     $after = Get-WpaSample
 
+    # A janela real, nao a pedida: quem divide o delta de CPU pelo intervalo
+    # solicitado inventa um percentual quando a coleta demora mais que o sleep.
+    $elapsed = [math]::Round(($after.CapturedAt - $before.CapturedAt).TotalSeconds, 1)
+
     $cpuPercent = $null
     if ($before.ProcessId -and $before.ProcessId -eq $after.ProcessId -and
-        $null -ne $before.CpuSeconds -and $null -ne $after.CpuSeconds) {
+        $null -ne $before.CpuSeconds -and $null -ne $after.CpuSeconds -and $elapsed -gt 0) {
         $cpuDelta = [math]::Max(0, $after.CpuSeconds - $before.CpuSeconds)
-        $cpuPercent = [math]::Round(($cpuDelta / ($Seconds * [Environment]::ProcessorCount)) * 100, 2)
+        $cpuPercent = [math]::Round(($cpuDelta / ($elapsed * [Environment]::ProcessorCount)) * 100, 2)
     }
 
     [PSCustomObject]@{
-        Seconds            = $Seconds
+        Seconds            = $elapsed
         InitialSubkeyCount = $before.SubkeyCount
         FinalSubkeyCount   = $after.SubkeyCount
         NewSubkeys         = $after.SubkeyCount - $before.SubkeyCount
         AverageCpuPercent  = $cpuPercent
         InitialStatus      = $before.ServiceStatus
         FinalStatus        = $after.ServiceStatus
+    }
+}
+
+function Get-WpaHiveSize {
+    <#
+      O arquivo do hive SYSTEM inteiro, em disco. E o sinal mais barato que
+      existe: normal fica entre 10 e 30 MB, e centenas de MB confirmam o inchaco
+      sem enumerar uma subchave sequer. O kernel mantem o arquivo aberto, entao
+      so o tamanho e legivel daqui -- nunca o conteudo.
+    #>
+    $file = Join-Path (Get-WindowsDirectory) 'System32\config\SYSTEM'
+    $item = Get-Item -LiteralPath $file -Force -ErrorAction Stop
+    [PSCustomObject]@{
+        Path      = $file
+        Bytes     = [long]$item.Length
+        MegaBytes = [math]::Round($item.Length / 1MB, 1)
+        Inchado   = ([long]$item.Length -gt 100MB)
+    }
+}
+
+function Get-WpaAclSample {
+    <#
+      Perfis de ACL da arvore WPA por amostragem. Get-Acl custa uma chamada por
+      subchave: em centenas de milhares de chaves sao horas de espera, e a
+      pergunta -- de quantos perfis distintos a arvore e feita, e quantos deles o
+      chamador nao consegue ler -- ja se responde numa amostra.
+    #>
+    [CmdletBinding()]
+    param([ValidateRange(20,5000)][int]$Limit = 400)
+
+    $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($script:WpaHiveSubPath)
+    if (-not $key) { throw 'A chave HKLM\SYSTEM\WPA nao foi encontrada.' }
+    try {
+        $total = [int]$key.SubKeyCount
+        $names = @($key.GetSubKeyNames())
+    }
+    finally { $key.Dispose() }
+
+    # Passo fixo em vez das primeiras N: a arvore inchada cresce no fim, e ler so
+    # o comeco devolveria sempre o mesmo perfil antigo.
+    $sample = $names
+    if ($names.Count -gt $Limit) {
+        $step = [int][math]::Ceiling($names.Count / $Limit)
+        $sample = @(for ($i = 0; $i -lt $names.Count; $i += $step) { $names[$i] })
+    }
+
+    $groups = @{}
+    $unreadable = 0
+    foreach ($name in $sample) {
+        $sddl = '<ILEGIVEL>'
+        try { $sddl = (Get-Acl -LiteralPath "$script:WpaRegistryPath\$name" -ErrorAction Stop).Sddl }
+        catch { $unreadable++ }
+        if ($groups.ContainsKey($sddl)) { $groups[$sddl]++ } else { $groups[$sddl] = 1 }
+    }
+
+    $owner = '<ILEGIVEL>'
+    try { $owner = (Get-Acl -LiteralPath $script:WpaRegistryPath -ErrorAction Stop).Owner }
+    catch { Write-Verbose "Dono da raiz WPA ilegivel: $($_.Exception.Message)" }
+
+    [PSCustomObject]@{
+        Count       = $total
+        Listed      = $names.Count
+        Sampled     = @($sample).Count
+        Unreadable  = $unreadable
+        RootOwner   = $owner
+        AclProfiles = $groups.Keys.Count
+        AclGroups   = @($groups.GetEnumerator() | ForEach-Object {
+                [PSCustomObject]@{ Subkeys = $_.Value; Sddl = $_.Key }
+            })
+    }
+}
+
+function Test-WpaActivatorFootprint {
+    <#
+      A bifurcacao que decide todo o resto: com um ativador vivo na maquina,
+      reparar e tratar sintoma -- ele desfaz o reparo na proxima renovacao. Tres
+      sinais independentes, nenhum conclusivo sozinho, e por isso a evidencia sai
+      como texto para o operador ler, nao como sentenca.
+    #>
+    $null = Get-WpaSupportedWindows
+    $evidence = [System.Collections.Generic.List[string]]::new()
+
+    $oemKey = $null
+    $kmsMachine = $null
+    $limitado = -not (Test-IsAdmin)
+    try {
+        $licensingService = Get-CimInstance -ClassName SoftwareLicensingService -ErrorAction Stop
+        $oemKey = [string]$licensingService.OA3xOriginalProductKey
+        $kmsMachine = [string]$licensingService.KeyManagementServiceMachine
+    }
+    catch {
+        Write-Verbose "SoftwareLicensingService indisponivel: $($_.Exception.Message)"
+        $limitado = $true
+    }
+
+    $kmsChannel = @(Get-CimInstance -ClassName SoftwareLicensingProduct `
+            -Filter "PartialProductKey IS NOT NULL AND Name LIKE 'Windows%'" -ErrorAction SilentlyContinue |
+        Where-Object { [string]$_.Description -match 'KMSCLIENT' })
+
+    # Canal KMS numa maquina com chave OEM gravada no firmware nao se explica
+    # sozinho: ali o normal e OEM_DM ou Retail. Num dominio com KMS de verdade
+    # isso e legitimo, entao vale como indicio, nunca como prova.
+    if ($kmsChannel.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($oemKey)) {
+        $evidence.Add("Canal KMSCLIENT em maquina com chave OEM no firmware ($($kmsChannel.Count) produto(s)).")
+    }
+    if (-not [string]::IsNullOrWhiteSpace($kmsMachine)) {
+        $evidence.Add("Servidor KMS fixado na maquina: $kmsMachine")
+    }
+
+    # Tarefas sob \Microsoft\ ficam de fora: o proprio Windows agenda renovacao
+    # de licenca ali, e incluir esse ramo faria todo mundo parecer infectado.
+    $tasks = @()
+    try {
+        $tasks = @(Get-ScheduledTask -ErrorAction Stop | Where-Object {
+                $_.TaskPath -notlike '\Microsoft\*' -and $_.TaskName -match '(?i)KMS|activat|ativa|renew'
+            })
+    }
+    catch { Write-Verbose "Tarefas agendadas indisponiveis: $($_.Exception.Message)" }
+    foreach ($task in $tasks) {
+        $evidence.Add("Tarefa agendada com cara de renovador: $($task.TaskPath)$($task.TaskName)")
+    }
+
+    # Sem elevacao a chave OEM do firmware volta vazia, e ai o indicio mais forte
+    # -- canal KMS numa maquina OEM -- nunca dispara. Um 'nao detectei' obtido
+    # assim precisa vir marcado, senao vira falsa tranquilidade.
+    [PSCustomObject]@{
+        Detected      = ($evidence.Count -gt 0)
+        Limitado      = $limitado
+        KmsChannel    = ($kmsChannel.Count -gt 0)
+        KmsMachine    = $kmsMachine
+        OemKeyPresent = (-not [string]::IsNullOrWhiteSpace($oemKey))
+        RenewalTasks  = @($tasks | ForEach-Object { "$($_.TaskPath)$($_.TaskName)" })
+        Evidence      = @($evidence)
     }
 }
 
@@ -365,20 +516,40 @@ function Invoke-WpaSystemProbe {
         throw "Windows PowerShell ausente: $powershell"
     }
 
+    # Gemeo de Get-WpaAclSample, repetido de proposito: este bloco roda noutro
+    # processo, sem o modulo carregado, entao nao da para chamar a funcao. O passo
+    # de amostragem e deterministico dos dois lados, e por isso SYSTEM e
+    # administrador acabam lendo as mesmas subchaves -- e a diferenca entre o que
+    # cada um consegue abrir vira o sinal.
     $command = @'
 $ErrorActionPreference = 'Stop'
 $path = 'Registry::HKEY_LOCAL_MACHINE\SYSTEM\WPA'
-$keys = @(Get-ChildItem -LiteralPath $path)
+$key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SYSTEM\WPA')
+$total = [int]$key.SubKeyCount
+$names = @($key.GetSubKeyNames())
+$key.Dispose()
+$limit = 400
+$sample = $names
+if ($names.Count -gt $limit) {
+    $step = [int][Math]::Ceiling($names.Count / $limit)
+    $sample = @(for ($i = 0; $i -lt $names.Count; $i += $step) { $names[$i] })
+}
 $groups = @{}
-foreach ($key in $keys) {
-    $sddl = try { (Get-Acl -LiteralPath $key.PSPath).Sddl } catch { '<ILEGIVEL>' }
+$unreadable = 0
+foreach ($name in $sample) {
+    $sddl = '<ILEGIVEL>'
+    try { $sddl = (Get-Acl -LiteralPath "$path\$name").Sddl } catch { $unreadable++ }
     if ($groups.ContainsKey($sddl)) { $groups[$sddl]++ } else { $groups[$sddl] = 1 }
 }
-$owner = try { (Get-Acl -LiteralPath $path).Owner } catch { '<ILEGIVEL>' }
+$owner = '<ILEGIVEL>'
+try { $owner = (Get-Acl -LiteralPath $path).Owner } catch { }
 [pscustomobject]@{
-    Count     = $keys.Count
-    RootOwner = $owner
-    AclGroups = @($groups.GetEnumerator() | ForEach-Object {
+    Count      = $total
+    Listed     = $names.Count
+    Sampled    = @($sample).Count
+    Unreadable = $unreadable
+    RootOwner  = $owner
+    AclGroups  = @($groups.GetEnumerator() | ForEach-Object {
         [pscustomobject]@{ Subkeys = $_.Value; Sddl = $_.Key }
     })
 } | ConvertTo-Json -Depth 4 -Compress
@@ -409,15 +580,22 @@ $owner = try { (Get-Acl -LiteralPath $path).Owner } catch { '<ILEGIVEL>' }
         }
         $probe = $json | ConvertFrom-Json -ErrorAction Stop
 
-        $adminCount = (Get-WpaSample).SubkeyCount
+        # A contagem total sai do hive e e a mesma para os dois: o que separa
+        # SYSTEM de administrador nao e quantas subchaves existem, e quantas dao
+        # para abrir. Por isso a diferenca e medida sobre a amostra, nao sobre o
+        # total -- e o relatorio diz que e amostra.
+        $adminSample = Get-WpaAclSample
         Registrar-Log 'Consulta somente leitura de WPA como SYSTEM concluida'
         return [PSCustomObject]@{
-            SystemCount     = [int]$probe.Count
-            AdminCount      = [int]$adminCount
-            HiddenFromAdmin = ([int]$probe.Count - [int]$adminCount)
-            RootOwner       = [string]$probe.RootOwner
-            AclProfiles     = @($probe.AclGroups).Count
-            AclGroups       = @($probe.AclGroups)
+            SystemCount      = [int]$probe.Count
+            AdminCount       = [int]$adminSample.Count
+            SampleSize       = [int]$probe.Sampled
+            SystemUnreadable = [int]$probe.Unreadable
+            AdminUnreadable  = [int]$adminSample.Unreadable
+            HiddenFromAdmin  = ([int]$adminSample.Unreadable - [int]$probe.Unreadable)
+            RootOwner        = [string]$probe.RootOwner
+            AclProfiles      = @($probe.AclGroups).Count
+            AclGroups        = @($probe.AclGroups)
         }
     }
     finally {
@@ -513,7 +691,7 @@ function Export-WpaReport {
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add('=== DIAGNOSTICO WPA / SPP ===')
     $lines.Add(($diagnostic | Select-Object Windows, Version, Build, CapturedAt, WpaSubkeyCount,
-            SppsvcStatus, SppsvcStartType, SppsvcProcessId, SppsvcCpuSeconds, SppErrors7Days |
+            HiveMegaBytes, SppsvcStatus, SppsvcStartType, SppsvcProcessId, SppsvcCpuSeconds, SppErrors7Days |
             Format-List | Out-String).Trim())
     if ($diagnostic.Licenses.Count -gt 0) {
         $lines.Add('')
@@ -769,6 +947,118 @@ function Invoke-WpaGuidedRepair {
     Registrar-Log 'Reparo guiado terminou sem ativacao'
 }
 
+function Invoke-WpaTriage {
+    <#
+      Orquestrador da triagem. Chama os coletores que ja existem na ordem do mais
+      barato para o mais caro e termina sempre com um veredito e um proximo passo
+      concreto. Nenhum coletor derruba os outros: o que falhar vira aviso com a
+      orientacao do que fazer (elevar, instalar o PsExec, tentar com rede), porque
+      diagnostico que morre calado no meio nao serve para nada.
+
+      Ordem: tamanho do hive -> rastro de ativador -> diagnostico geral ->
+      crescimento -> sonda como SYSTEM (opcional, cara e com dependencia externa).
+    #>
+    [CmdletBinding()]
+    param(
+        [ValidateRange(5,600)][int]$Seconds = 120,
+        [switch]$IncluirSondaSystem
+    )
+
+    $null = Get-WpaSupportedWindows
+    $avisos = [System.Collections.Generic.List[string]]::new()
+
+    $hive = $null
+    try { $hive = Get-WpaHiveSize }
+    catch {
+        $avisos.Add("Tamanho do hive SYSTEM indisponivel ($($_.Exception.Message)). Reabra o Sync Master como administrador para ler esse sinal.")
+    }
+
+    $ativador = $null
+    try { $ativador = Test-WpaActivatorFootprint }
+    catch { $avisos.Add("Rastreio de ativador incompleto: $($_.Exception.Message)") }
+
+    $diagnostico = $null
+    try { $diagnostico = Get-WpaDiagnostic }
+    catch { $avisos.Add("Diagnostico geral falhou: $($_.Exception.Message)") }
+
+    $estado = $null
+    try { $estado = Get-WpaActivationState }
+    catch { $avisos.Add("Estado de licenca indisponivel: $($_.Exception.Message)") }
+
+    # Unico passo que custa tempo de parede, e o unico que separa 'esta
+    # acontecendo agora' de 'ja aconteceu e parou'.
+    $crescimento = $null
+    try { $crescimento = Measure-WpaGrowth -Seconds $Seconds }
+    catch { $avisos.Add("Medicao de crescimento falhou: $($_.Exception.Message)") }
+
+    $sonda = $null
+    if ($IncluirSondaSystem) {
+        try {
+            $psExec = Find-WpaPsExec64
+            if (-not $psExec) {
+                throw 'PsExec64 nao foi encontrado; a opcao 3 do menu instala e valida a assinatura antes de usar.'
+            }
+            $sonda = Invoke-WpaSystemProbe -PsExecPath $psExec
+        }
+        catch { $avisos.Add("Sonda como SYSTEM nao rodou: $($_.Exception.Message)") }
+    }
+
+    $inchado = ($null -ne $hive -and $hive.Inchado) -or
+               ($null -ne $diagnostico -and $diagnostico.WpaSubkeyCount -gt 50000)
+    $crescendo = ($null -ne $crescimento -and $crescimento.NewSubkeys -gt 0)
+    $licenciado = ($null -ne $estado -and $estado.Licensed)
+
+    if ($null -ne $ativador -and $ativador.Detected) {
+        $veredito = 'ATIVADOR PRESENTE'
+        $proximo = 'Remova o ativador e as tarefas agendadas dele ANTES de qualquer reparo: enquanto ele renovar, toda correcao volta atras em horas. Depois disso use o reparo guiado (opcao 16).'
+    }
+    elseif ($crescendo) {
+        $veredito = 'CRESCENDO AGORA'
+        $proximo = "A arvore ganhou $($crescimento.NewSubkeys) subchave(s) em $($crescimento.Seconds)s, entao alguma coisa esta reativando em ciclo. Confira licenca e eventos Security-SPP acima; se o Windows nao consta licenciado, o reparo guiado (opcao 16) ataca a causa. Nao adianta encolher a arvore com a causa viva."
+    }
+    elseif ($null -ne $estado -and -not $licenciado) {
+        $veredito = "LICENCA NAO ATIVA ($($estado.StatusText))"
+        $proximo = 'Use o reparo guiado (opcao 16): ele sobe do mais barato ao mais invasivo e para no degrau que licenciar. Sem rede para o /ato, tente a ativacao por telefone (opcao 17).'
+    }
+    elseif ($inchado) {
+        $veredito = 'CICATRIZ ANTIGA'
+        $proximo = 'Windows licenciado e arvore parada: o inchaco e rastro do que ja passou, nao causa ativa. O Sync Master nao encolhe HKLM\SYSTEM\WPA porque nao existe contrato oficial de reconstrucao, e uma arvore grande e parada nao quebra o licenciamento. Guarde o relatorio (opcao 5) e siga.'
+    }
+    elseif ($licenciado -and $null -ne $diagnostico) {
+        $veredito = 'NORMAL'
+        $proximo = 'Licenciado, arvore no tamanho esperado e sem crescimento no intervalo. Nada a corrigir.'
+    }
+    else {
+        $veredito = 'INCONCLUSIVO'
+        $proximo = 'Faltou dado para concluir -- veja os avisos acima. Rode como administrador e, se o caso persistir, gere o relatorio oficial (opcao 6) e a sonda como SYSTEM (opcao 3).'
+    }
+
+    if ($null -ne $ativador -and -not $ativador.Detected -and $ativador.Limitado) {
+        $avisos.Add('O rastreio de ativador rodou sem elevacao: a chave OEM do firmware nao e legivel assim, entao "nenhum ativador" aqui vale menos. Reabra o Sync Master como administrador antes de descartar essa hipotese.')
+    }
+    if (-not $IncluirSondaSystem -and ($crescendo -or $inchado)) {
+        $avisos.Add('A sonda como SYSTEM (opcao 3) mostra quantas subchaves o administrador nao consegue abrir. E ai que o crescimento costuma se esconder.')
+    }
+
+    Write-Host ''
+    Write-Host "VEREDITO: $veredito" -ForegroundColor Cyan
+    Write-Host "PROXIMO PASSO: $proximo" -ForegroundColor Yellow
+    foreach ($aviso in $avisos) { Write-Warning $aviso }
+    Registrar-Log "Triagem WPA concluida: $veredito"
+
+    [PSCustomObject]@{
+        Veredito     = $veredito
+        Proximo      = $proximo
+        Avisos       = @($avisos)
+        Hive         = $hive
+        Ativador     = $ativador
+        Diagnostico  = $diagnostico
+        Estado       = $estado
+        Crescimento  = $crescimento
+        Sonda        = $sonda
+    }
+}
+
 function Menu-GerenciamentoWpa {
     try { $null = Get-WpaSupportedWindows }
     catch {
@@ -781,6 +1071,7 @@ function Menu-GerenciamentoWpa {
         Clear-Host
         Write-Host '--- WPA / PROTECAO DE SOFTWARE (WINDOWS 10/11 x64) ---' -ForegroundColor Cyan
         Write-Host '[ DIAGNOSTICO - somente leitura ]' -ForegroundColor DarkCyan
+        Write-Host '0  - Triagem completa: roda tudo na ordem e diz o proximo passo' -ForegroundColor Green
         Write-Host '1  - Diagnostico geral (licenca, sppsvc, eventos, subchaves)'
         Write-Host '2  - Medir crescimento das subchaves WPA por um intervalo'
         Write-Host '3  - Sondar a arvore como SYSTEM: subchaves ocultas e perfis de ACL (PsExec64)'
@@ -806,9 +1097,26 @@ function Menu-GerenciamentoWpa {
 
         try {
             switch ($choice.ToUpper()) {
+                '0' {
+                    Write-Host 'A triagem observa o WPA por 2 minutos antes de concluir.' -ForegroundColor Yellow
+                    $comSonda = Confirm-Action 'Incluir a sonda como SYSTEM (exige PsExec64 e elevacao)?'
+                    $triagem = Invoke-WpaTriage -Seconds 120 -IncluirSondaSystem:$comSonda
+                    if ($triagem.Hive) {
+                        Write-Host "Hive SYSTEM: $($triagem.Hive.MegaBytes) MB" -ForegroundColor Cyan
+                    }
+                    if ($triagem.Diagnostico) {
+                        $triagem.Diagnostico | Select-Object Windows,Build,WpaSubkeyCount,SppsvcStatus,SppErrors7Days | Format-List
+                    }
+                    if ($triagem.Ativador -and $triagem.Ativador.Evidence.Count -gt 0) {
+                        Write-Host 'Indicios de ativador:' -ForegroundColor Yellow
+                        $triagem.Ativador.Evidence | ForEach-Object { Write-Host "  - $_" }
+                    }
+                    if ($triagem.Crescimento) { $triagem.Crescimento | Format-List }
+                    Pause-Script
+                }
                 '1' {
                     $diagnostic = Get-WpaDiagnostic
-                    $diagnostic | Select-Object Windows,Version,Build,CapturedAt,WpaSubkeyCount,
+                    $diagnostic | Select-Object Windows,Version,Build,CapturedAt,WpaSubkeyCount,HiveMegaBytes,
                         SppsvcStatus,SppsvcStartType,SppsvcProcessId,SppsvcCpuSeconds,SppErrors7Days | Format-List
                     if ($diagnostic.Licenses.Count -gt 0) {
                         Write-Host 'Licencas Windows detectadas:' -ForegroundColor Cyan
@@ -854,9 +1162,10 @@ function Menu-GerenciamentoWpa {
                         $psExec = Install-WpaPsExec64 -AcceptLicense
                     }
                     $probe = Invoke-WpaSystemProbe -PsExecPath $psExec
-                    $probe | Select-Object SystemCount,AdminCount,HiddenFromAdmin,RootOwner,AclProfiles | Format-List
+                    $probe | Select-Object SystemCount,AdminCount,SampleSize,SystemUnreadable,
+                        AdminUnreadable,HiddenFromAdmin,RootOwner,AclProfiles | Format-List
                     if ($probe.HiddenFromAdmin -gt 0) {
-                        Write-Warning "$($probe.HiddenFromAdmin) subchave(s) existem para o SYSTEM e nao para o administrador. E ai que o crescimento se esconde."
+                        Write-Warning "Na amostra de $($probe.SampleSize) subchave(s), $($probe.HiddenFromAdmin) so abrem para o SYSTEM. E ai que o crescimento se esconde."
                     }
                     $probe.AclGroups | Sort-Object Subkeys -Descending | Select-Object -First 5 |
                         Select-Object Subkeys,@{n='Sddl';e={ $_.Sddl.Substring(0, [Math]::Min(60, $_.Sddl.Length)) }} |

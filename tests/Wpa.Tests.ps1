@@ -1,4 +1,8 @@
-﻿# Pester 5 — comportamento do arsenal WPA (modules\Ativacao.psm1).
+﻿# ====================== BEGIN NAV INDEX ======================
+# NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
+# ======================= END NAV INDEX =======================
+
+# Pester 5 — comportamento do arsenal WPA (modules\Ativacao.psm1).
 # Rodar:  Invoke-Pester -Path .\tests
 #
 # Os testes de Menu.Tests.ps1 sao estaticos: garantem o contorno do modulo lendo
@@ -240,6 +244,164 @@ Describe 'Invoke-Slmgr (ativacao por telefone)' {
     }
 }
 
+Describe 'Invoke-WpaTriage' {
+    BeforeEach {
+        # Mesmo motivo do bloco da escada: mock e InModuleScope rodam em session
+        # states diferentes, entao o estado do caso vive em escopo global.
+        $global:WpaTeste = @{
+            HiveMegaBytes = 22
+            Inchado       = $false
+            Ativador      = $false
+            SemElevacao   = $false
+            Licenciado    = $true
+            Novas         = 0
+        }
+        Mock -ModuleName Ativacao Get-WpaSupportedWindows { [PSCustomObject]@{ Caption = 'Windows 10 Pro' } }
+        Mock -ModuleName Ativacao Registrar-Log { }
+        Mock -ModuleName Ativacao Write-Host { }
+        Mock -ModuleName Ativacao Write-Warning { }
+        Mock -ModuleName Ativacao Get-WpaHiveSize {
+            [PSCustomObject]@{
+                Path      = 'C:\Windows\System32\config\SYSTEM'
+                Bytes     = [long]$global:WpaTeste.HiveMegaBytes * 1MB
+                MegaBytes = $global:WpaTeste.HiveMegaBytes
+                Inchado   = [bool]$global:WpaTeste.Inchado
+            }
+        }
+        Mock -ModuleName Ativacao Test-WpaActivatorFootprint {
+            [PSCustomObject]@{
+                Detected = [bool]$global:WpaTeste.Ativador
+                Limitado = [bool]$global:WpaTeste.SemElevacao
+                Evidence = @(if ($global:WpaTeste.Ativador) { 'Tarefa agendada com cara de renovador: \AutoKMS' })
+            }
+        }
+        Mock -ModuleName Ativacao Get-WpaDiagnostic {
+            [PSCustomObject]@{ Windows = 'Windows 10 Pro'; WpaSubkeyCount = 1200; SppErrors7Days = 0 }
+        }
+        Mock -ModuleName Ativacao Get-WpaActivationState {
+            [PSCustomObject]@{
+                Licensed   = [bool]$global:WpaTeste.Licenciado
+                StatusCode = if ($global:WpaTeste.Licenciado) { 1 } else { 5 }
+                StatusText = if ($global:WpaTeste.Licenciado) { 'Licenciado' } else { 'Notificacao' }
+            }
+        }
+        Mock -ModuleName Ativacao Measure-WpaGrowth {
+            [PSCustomObject]@{ Seconds = 5; NewSubkeys = [int]$global:WpaTeste.Novas }
+        }
+        Mock -ModuleName Ativacao Find-WpaPsExec64 { $null }
+        Mock -ModuleName Ativacao Invoke-WpaSystemProbe { }
+    }
+
+    # A bifurcacao inteira: com ativador vivo, reparar e tratar sintoma. Ele vence
+    # ate quando todo o resto parece saudavel.
+    It 'ativador presente vence os outros sinais' {
+        $global:WpaTeste.Ativador = $true
+        $global:WpaTeste.Novas = 3
+        $global:WpaTeste.Licenciado = $false
+
+        $resultado = InModuleScope Ativacao { Invoke-WpaTriage -Seconds 5 }
+
+        $resultado.Veredito | Should -Be 'ATIVADOR PRESENTE'
+        $resultado.Proximo | Should -Match 'Remova o ativador'
+    }
+
+    It 'crescimento no intervalo vem antes do estado da licenca' {
+        $global:WpaTeste.Novas = 7
+        $global:WpaTeste.Licenciado = $false
+
+        $resultado = InModuleScope Ativacao { Invoke-WpaTriage -Seconds 5 }
+
+        $resultado.Veredito | Should -Be 'CRESCENDO AGORA'
+    }
+
+    It 'licenca inativa sem crescimento manda para o reparo guiado' {
+        $global:WpaTeste.Licenciado = $false
+
+        $resultado = InModuleScope Ativacao { Invoke-WpaTriage -Seconds 5 }
+
+        $resultado.Veredito | Should -Be 'LICENCA NAO ATIVA (Notificacao)'
+        $resultado.Proximo | Should -Match 'opcao 16'
+    }
+
+    # Licenciado, parado e inchado: o Sync Master nao encolhe a arvore, entao o
+    # veredito precisa dizer isso em vez de prometer faxina.
+    It 'arvore inchada, parada e licenciada e cicatriz antiga' {
+        $global:WpaTeste.Inchado = $true
+        $global:WpaTeste.HiveMegaBytes = 480
+
+        $resultado = InModuleScope Ativacao { Invoke-WpaTriage -Seconds 5 }
+
+        $resultado.Veredito | Should -Be 'CICATRIZ ANTIGA'
+        $resultado.Proximo | Should -Match 'nao encolhe'
+    }
+
+    It 'maquina saudavel nao inventa problema' {
+        $resultado = InModuleScope Ativacao { Invoke-WpaTriage -Seconds 5 }
+
+        $resultado.Veredito | Should -Be 'NORMAL'
+        $resultado.Avisos.Count | Should -Be 0
+    }
+
+    # Um coletor que estoura nao pode derrubar a triagem: os outros ainda rodam e
+    # a falha vira orientacao.
+    It 'coletor que falha vira aviso e nao derruba a triagem' {
+        Mock -ModuleName Ativacao Get-WpaHiveSize { throw 'Acesso negado' }
+
+        $resultado = InModuleScope Ativacao { Invoke-WpaTriage -Seconds 5 }
+
+        $resultado.Veredito | Should -Be 'NORMAL'
+        $resultado.Avisos -join ' ' | Should -Match 'administrador'
+        Should -Invoke -ModuleName Ativacao Measure-WpaGrowth -Times 1 -Exactly
+    }
+
+    It 'sem dado nenhum conclui inconclusivo em vez de chutar' {
+        Mock -ModuleName Ativacao Get-WpaHiveSize { throw 'Acesso negado' }
+        Mock -ModuleName Ativacao Get-WpaDiagnostic { throw 'WPA ilegivel' }
+        Mock -ModuleName Ativacao Get-WpaActivationState { throw 'CIM fora do ar' }
+        Mock -ModuleName Ativacao Measure-WpaGrowth { throw 'WPA ilegivel' }
+
+        $resultado = InModuleScope Ativacao { Invoke-WpaTriage -Seconds 5 }
+
+        $resultado.Veredito | Should -Be 'INCONCLUSIVO'
+        $resultado.Avisos.Count | Should -Be 4
+    }
+
+    # 'Nao detectei ativador' sem elevacao nao e a mesma frase que com elevacao:
+    # a chave OEM do firmware, que sustenta o indicio mais forte, volta vazia.
+    It 'marca que o rastreio de ativador rodou cego sem elevacao' {
+        $global:WpaTeste.SemElevacao = $true
+
+        $resultado = InModuleScope Ativacao { Invoke-WpaTriage -Seconds 5 }
+
+        $resultado.Veredito | Should -Be 'NORMAL'
+        $resultado.Avisos -join ' ' | Should -Match 'sem elevacao'
+    }
+
+    It 'nao repete o aviso de elevacao quando o ativador foi detectado' {
+        $global:WpaTeste.SemElevacao = $true
+        $global:WpaTeste.Ativador = $true
+
+        $resultado = InModuleScope Ativacao { Invoke-WpaTriage -Seconds 5 }
+
+        $resultado.Avisos -join ' ' | Should -Not -Match 'sem elevacao'
+    }
+
+    It 'nao roda a sonda como SYSTEM sem o switch' {
+        $resultado = InModuleScope Ativacao { Invoke-WpaTriage -Seconds 5 }
+
+        Should -Invoke -ModuleName Ativacao Invoke-WpaSystemProbe -Times 0 -Exactly
+        $resultado.Sonda | Should -BeNullOrEmpty
+    }
+
+    # PsExec ausente e o caso comum, e a licenca Sysinternals impede embutir o
+    # binario: entao a triagem precisa orientar, nunca falhar calada.
+    It 'orienta quando a sonda foi pedida e o PsExec nao existe' {
+        $resultado = InModuleScope Ativacao { Invoke-WpaTriage -Seconds 5 -IncluirSondaSystem }
+
+        $resultado.Veredito | Should -Be 'NORMAL'
+        $resultado.Avisos -join ' ' | Should -Match 'opcao 3'
+    }
+}
 AfterAll {
     Remove-Variable -Name WpaTeste -Scope Global -ErrorAction SilentlyContinue
 }

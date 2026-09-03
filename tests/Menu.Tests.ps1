@@ -103,6 +103,15 @@ Describe 'Menu WPA (2 -> 2 -> 6)' {
 ]*delete'
     }
 
+    # A triagem e a porta de entrada do menu: se o despacho sumir, o usuario cai
+    # de novo em escolher a esmo entre 17 opcoes.
+    It 'o menu WPA oferece e despacha a triagem na opcao 0' {
+        $corpo = [regex]::Match($script:AtivacaoText, '(?ms)^function Menu-GerenciamentoWpa \{.*?^\}').Value
+        $corpo | Should -Match "(?m)^\s*Write-Host '0\s+- Triagem completa"
+        $bloco = [regex]::Match($corpo, "(?ms)'0'\s*\{.*?\r?\n                \}").Value
+        $bloco | Should -Match 'Invoke-WpaTriage'
+    }
+
     It 'so executa o PsExec depois de validar produto e assinatura Microsoft' {
         $script:AtivacaoText | Should -Match 'Get-AuthenticodeSignature'
         $script:AtivacaoText | Should -Match 'Sysinternals PsExec'
