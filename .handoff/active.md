@@ -1,74 +1,89 @@
-# Handoff · Sync Master · 2026-08-26
+# Handoff · Sync Master · 2026-09-03
 
 ## Goal
-Adicionar ao Sync Master uma opção de instalação de utilitários de gerenciamento via winget
-(WizTree, Sysinternals, etc.), commitada e no ar. **Concluído e empurrado.**
+Criar no menu WPA (2 → 2 → 6) uma opção **orquestradora**: roda a triagem inteira chamando as
+funções que já existem, na ordem certa, e quando não conseguir concluir sozinha **orienta o
+usuário** com o próximo passo concreto. Funções novas são bem-vindas onde faltarem.
 
 ## State
-- HEAD: `d921173` (pushed; branch em sincronia com `origin/master`)
-- Live state: `origin` foi corrigido para `https://github.com/Codyte/Sync.git` — o GitHub avisava
-  que `Sync15` mudou de nome e o push só passava por redirecionamento. **A outra máquina ainda
-  aponta para o nome velho.** Nada rodando, nada em estado não-padrão neste repo.
-- Done: 3 commits — `a2417bb` (retarget dos 2 testes de ativação), `f1ced43` (o menu novo),
-  `d921173` (mapas navindex). Suite **200/200**, gate de pre-commit OK nos três.
-- Done: integrados 35 commits da outra máquina antes de commitar (launcher renomeado
-  `Sync_MasterV15.ps1` → `Sync_Master.ps1`, `PowerShellUpdate.psm1` e `Otimizacao.psm1`
-  reescritos, `install.ps1` e `.github/workflows/release.yml` novos).
-- In progress: nada mid-flight.
+- HEAD: `559d900` (empurrado; `origin/master` em sincronia)
+- Live state: nada rodando, nada em estado não-padrão. Nenhuma correção WPA foi executada nesta
+  máquina — só caminhos de leitura. Relatórios de teste ficaram em
+  `%LOCALAPPDATA%\SyncMaster\Relatorios\WPA\` (descartáveis).
+- Done: 3 commits nesta sessão — `51615fc` (arsenal de correção), `559d900` (Win11 + 17 testes de
+  comportamento + telefone + sonda ACL + estado granular). Gate **242/242**, lint 0 erros /
+  11 warnings (baseline).
+- In progress: nada mid-flight. O que segue é trabalho novo, já especificado abaixo.
 
 ## Decisions (and why)
-- **Reusar `Invoke-WingetInstall` em vez de escrever chamada winget nova** — ele já trata os três
-  tropeços: winget ausente, `--accept-*-agreements` e `$LASTEXITCODE` (exe nativo com exit ≠ 0 não
-  lança exceção). Mesma lógica para `Parse-Selection`, que já fazia `"1 3 5-7"`.
-- **Catálogo é dado, não código** — `Get-CatalogoFerramentas` devolve tabela; acrescentar
-  utilitário é uma linha. Mesmo padrão do `Menu.psm1`, que o repo já tinha escolhido.
-- **`Id` do catálogo tem que ser 1..N contíguo** — o menu passa `Parse-Selection -Max Count` e
-  depois casa por `Id`; Id furado selecionaria a ferramenta errada **em silêncio**. Tem teste
-  travando isso, é o invariante que justifica o arquivo de teste existir.
-- **Não criei README separado do módulo** — o cabeçalho do `Ferramentas.psm1` já documenta como
-  acrescentar, e o teste é quem garante. Um segundo lugar só criaria divergência.
-- **Rejeitado: `--no-verify`** para passar pelo gate. E rejeitado remover o ativador MAS para
-  deixar a suite verde — o dono decidiu que fica (ver `standing.md`); quem estava desatualizado
-  eram os testes.
-- **Testes retargetados, não apagados** — `tests/Menu.Tests.ps1` e `tests/Manifest.Tests.ps1`
-  agora afirmam o contorno do ativador (oculto, não exportado, guardado) em vez da sua ausência.
-- **Descartado de propósito**: a modificação local de `Sync Master.lnk` (alteração incidental do
-  Windows num arquivo que o remoto apagou, trocado por `Sync Master.cmd` + `install.ps1`) e uma
-  regeneração de navindex calculada sobre o código pré-merge.
-- **`--map-only` no navindex** — refazer headers tocaria arquivo que a outra máquina acabou de
-  escrever, por nada. Só os 3 mapas + árvore raiz; 0 headers.
+- **O arsenal de correção está completo** — `/ato`, `/rilc`, `/ckms`, tokens.dat, DISM+SFC,
+  `/upk`+`/cpky`, `/rearm`, `/dti`+`/atp`, serviços, e a escada guiada. Não falta verbo oficial.
+  O que falta é **triagem**, não reparo. Não reabrir o reparo.
+- **Nada apaga `HKLM\SYSTEM\WPA`** e o `tokens.dat` é renomeado, nunca apagado — travado por teste
+  em `tests/Menu.Tests.ps1`. A árvore inchada **não encolhe** com nenhuma opção; isso é deliberado
+  (sem contrato oficial de reconstrução) e o orquestrador precisa dizer isso ao usuário em vez de
+  prometer faxina.
+- **Testes de comportamento usam estado `$global:`** — `Mock -ModuleName` e `InModuleScope` rodam em
+  session states diferentes e `$script:` não é o mesmo dos dois lados; com `$script:` o flag vazava
+  entre casos e o teste passava por acidente. Suprimido no PSScriptAnalyzer com justificativa no
+  topo de `tests/Wpa.Tests.ps1`. **Não "consertar" isso de volta para `$script:`.**
+- **Rejeitado redistribuir o PsExec no repo** — a licença Sysinternals proíbe. Aquisição é via
+  WinGet (`Microsoft.Sysinternals.PsTools`, id exato) com fallback para live.sysinternals.com, sempre
+  com consentimento + validação Authenticode.
+- **`Invoke-Slmgr` captura a saída** (`-Quiet`) decodificando o code page OEM. Sem isso o relatório
+  sai com acento quebrado ("m�quina"). Não voltar para `Start-Process`.
 
 ## Next steps (ordered)
-1. Nada bloqueante — a entrega fechou. Se voltar ao assunto, o degrau natural é
-   **`--disable-interactivity` no `Invoke-WingetInstall`**: hoje não está lá (os dois `--accept-*`
-   cobrem os prompts realistas), mas prompt inesperado ainda penduraria o menu inteiro. Mudança
-   compartilhada com o menu do PowerShell, então precisa dos testes dos dois.
-2. Corrigir o `origin` na outra máquina: `git remote set-url origin https://github.com/Codyte/Sync.git`.
-3. Se quiser mais utilitários no menu: uma linha em `Get-CatalogoFerramentas`, conferindo o
-   `PacoteId` com `winget show --id <id> --exact` antes (`MartiCliment.UniGetUI` **não** existe
-   estável — o id certo é `Devolutions.UniGetUI`).
+1. **Contagem O(1) da árvore.** `Get-WpaSample` faz `Get-ChildItem` completo; com 200k+ subchaves
+   leva minutos. Trocar por
+   `[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SYSTEM\WPA').SubKeyCount` (campo do hive,
+   instantâneo; fechar o handle). **Isso também corrige um defeito real:** `Measure-WpaGrowth`
+   chama `Get-WpaSample` antes e depois do `Start-Sleep`, então numa máquina inchada a janela real
+   vira ~11 min enquanto o objeto informa `Seconds = 300` — o delta sai inflado e o relatório mente
+   sobre o intervalo.
+2. **`Get-WpaHiveSize`** — tamanho de `C:\Windows\System32\config\SYSTEM` em disco. Sinal mais
+   barato que existe (normal 10–30 MB; centenas de MB confirmam o inchaço sem enumerar nada).
+   Entra em `Get-WpaDiagnostic` e em `Export-WpaReport`.
+3. **`Test-WpaActivatorFootprint`** — a bifurcação que decide todo o resto: canal `KMSCLIENT` em
+   máquina OEM/Retail, `SoftwareLicensingService.KeyManagementServiceMachine` preenchido, e tarefas
+   agendadas com cara de renovador (`Get-ScheduledTask` filtrando `KMS|activat|AutoKMS|Renew`).
+   Se houver ativador vivo, reparar é tratar sintoma — volta em horas.
+4. **Amostragem em `Invoke-WpaSystemProbe`.** Hoje roda `Get-Acl` **por subchave**: em 200k chaves
+   são 200k chamadas, horas. Amostrar algumas centenas e rotular o resultado como amostra.
+5. **`Invoke-WpaTriage` + entrada `0` no topo do menu** — o orquestrador pedido. Chama, em ordem:
+   hive size → activator footprint → `Get-WpaDiagnostic` → `Measure-WpaGrowth` (janela maior) →
+   opcionalmente a sonda como SYSTEM. Emite **veredito + próximo passo**: *ativador presente* /
+   *crescendo agora* / *cicatriz antiga* / *licença ilegítima* / *inconclusivo, faça X*. Quando
+   depender de algo que ele não pode fazer sozinho (PsExec ausente, sem elevação, sem rede),
+   **orienta** em vez de falhar calado.
+6. Teste de comportamento para o veredito em `tests/Wpa.Tests.ps1` (mockar os coletores, afirmar a
+   conclusão de cada combinação) + navindex + gate + commit.
 
 ## Key files
-- `modules/Ferramentas.psm1` — o módulo novo; catálogo, render, `Install-Ferramenta`, menu.
-- `tests/Ferramentas.Tests.ps1` — 8 testes; o de `Id` contíguo é o que importa.
-- `modules/Menu.psm1` — entrada `16` na tabela do menu principal.
-- `SyncMaster.psd1` — `NestedModules` + `FunctionsToExport`.
-- `modules/__navi__.md` e `tests/__navi__.md` — mapas das duas pastas que os próximos passos tocam.
+- `modules/Ativacao.psm1` — tudo do WPA vive aqui (1094 linhas; header navindex no topo mapeia os 32 símbolos).
+- `tests/Wpa.Tests.ps1` — testes de comportamento com mocks; o padrão `$global:WpaTeste` a seguir.
+- `tests/Menu.Tests.ps1` — testes estáticos (contorno do módulo, invariantes de segurança).
+- `modules/__navi__.md` e `tests/__navi__.md` — mapas das duas pastas que os passos tocam.
+
+## First call
+```bash
+cd /c/Scripts/Script_Sync/Sync; echo "=== 1 git ==="; git log -3 --oneline; git status --short; echo "=== 2 navi modules ==="; sed -n '1,40p' modules/__navi__.md; echo "=== 3 header ativacao ==="; sed -n '1,45p' modules/Ativacao.psm1; echo "=== 4 sample+growth ==="; sed -n '/^function Get-WpaSample/,/^}/p' modules/Ativacao.psm1; echo "=== 5 menu topo ==="; sed -n '/--- WPA \/ PROTECAO/,/Sua escolha/p' modules/Ativacao.psm1; echo "=== 6 padrao de teste ==="; sed -n '/^Describe .Invoke-WpaGuidedRepair/,/^    }/p' tests/Wpa.Tests.ps1 | head -40
+```
 
 ## Open / blockers
-- **Nenhum bloqueio.** Um débito registrado: `Ativacao.psm1` e a auditoria de 12/08 se contradizem
-  por construção agora (a auditoria removeu o ativador, o dono re-adicionou). Está resolvido no
-  nível dos testes e anotado em `standing.md` — não reabrir sem motivo novo.
-- Trabalho feito de uma sessão que nasce na **sessão 0** do Windows (VS Code tunnel): winget com
-  instalador MSIX falha ali com `0x80070520`. Não afeta este repo (o Sync Master roda interativo),
-  mas afeta qualquer agente que tente instalar pacote daqui.
+- **Nenhum bloqueio.** Aviso operacional: a máquina de desenvolvimento está licenciada e com árvore
+  WPA pequena, então o caso extremo (centenas de milhares de subchaves) **não dá para reproduzir
+  aqui** — os passos 1 e 4 têm de ser validados por teste com mock, não por execução real.
+- Sessão em sessão 0 do Windows (VS Code tunnel) falha ao instalar MSIX pelo winget (`0x80070520`).
+  Não afeta este repo, afeta qualquer tentativa de instalar o PsTools a partir daqui.
 
 ## Skills
 - navindex
 
 ## Effort
-**Baixo** para o passo 1 — é mudança de uma flag num helper de 20 linhas, com dois testes já
-existentes cobrindo os chamadores. Sobe para **médio** se o `--disable-interactivity` fizer o
-winget recusar em máquina com versão antiga (a flag exige winget ≥ 1.4), porque aí vira detecção
-de versão em runtime. Raciocínio não é o gargalo aqui: o custo real é a suite Pester (~8 s por
-commit por causa do gate) e o round-trip do winget.
+**Médio** para o passo 1. É pouca linha, mas `Get-WpaSample` é chamado por `Get-WpaDiagnostic`,
+`Measure-WpaGrowth` e `Invoke-WpaSystemProbe` — trocar a fonte da contagem sem ler os três callers
+é como se ship um bug silencioso de medição. Sobe para **alto** se `SubKeyCount` divergir da
+enumeração (chaves ilegíveis por ACL contam no hive e não no `Get-ChildItem`): aí a divergência
+vira sinal de diagnóstico e muda o desenho, não é erro. Raciocínio não é o gargalo — o custo real é
+a suíte Pester (~8 s por commit por causa do gate pre-commit).
