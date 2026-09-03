@@ -1,89 +1,90 @@
 # Handoff · Sync Master · 2026-09-03
 
 ## Goal
-Criar no menu WPA (2 → 2 → 6) uma opção **orquestradora**: roda a triagem inteira chamando as
-funções que já existem, na ordem certa, e quando não conseguir concluir sozinha **orienta o
-usuário** com o próximo passo concreto. Funções novas são bem-vindas onde faltarem.
+Tornar o Sync Master capaz de **corrigir remotamente** uma árvore WPA patológica (caso real:
+laptop i9, 8 anos sem atualizar, **340.000 subchaves**, acessado só por remoto). O procedimento
+que funciona roda no WinRE, e é justamente isso que mata o acesso remoto — o trabalho é fechar
+esse ciclo sem exigir presença física, ou encaminhar ao máximo.
 
 ## State
-- HEAD: `559d900` (empurrado; `origin/master` em sincronia)
-- Live state: nada rodando, nada em estado não-padrão. Nenhuma correção WPA foi executada nesta
-  máquina — só caminhos de leitura. Relatórios de teste ficaram em
-  `%LOCALAPPDATA%\SyncMaster\Relatorios\WPA\` (descartáveis).
-- Done: 3 commits nesta sessão — `51615fc` (arsenal de correção), `559d900` (Win11 + 17 testes de
-  comportamento + telefone + sonda ACL + estado granular). Gate **242/242**, lint 0 erros /
-  11 warnings (baseline).
-- In progress: nada mid-flight. O que segue é trabalho novo, já especificado abaixo.
+- HEAD: `89b5ff2` (empurrado; `origin/master` em sincronia)
+- Live state: atalho "Sync Master" criado nesta máquina em **duas** pastas reais — Desktop e
+  `%APPDATA%\...\Start Menu\Programs` — ambos apontando para `C:\Scripts\Script_Sync\Sync`.
+  Se o repo mudar de lugar, rodar a opção 17 de novo. Nenhuma correção WPA foi executada aqui.
+- Done nesta sessão: 3 commits. `65eb559` triagem WPA + contagem O(1); `11c03b1` opção 17
+  (atalho Desktop + Menu Iniciar); `89b5ff2` opção 18 (guia do reset offline + risco de reativar).
+  Gate **269/269**, lint 0 erros / 11 warnings (baseline, composição idêntica ao HEAD anterior).
+- In progress: nada mid-flight. O que segue é design aprovado, ainda não escrito.
 
 ## Decisions (and why)
-- **O arsenal de correção está completo** — `/ato`, `/rilc`, `/ckms`, tokens.dat, DISM+SFC,
-  `/upk`+`/cpky`, `/rearm`, `/dti`+`/atp`, serviços, e a escada guiada. Não falta verbo oficial.
-  O que falta é **triagem**, não reparo. Não reabrir o reparo.
-- **Nada apaga `HKLM\SYSTEM\WPA`** e o `tokens.dat` é renomeado, nunca apagado — travado por teste
-  em `tests/Menu.Tests.ps1`. A árvore inchada **não encolhe** com nenhuma opção; isso é deliberado
-  (sem contrato oficial de reconstrução) e o orquestrador precisa dizer isso ao usuário em vez de
-  prometer faxina.
-- **Testes de comportamento usam estado `$global:`** — `Mock -ModuleName` e `InModuleScope` rodam em
-  session states diferentes e `$script:` não é o mesmo dos dois lados; com `$script:` o flag vazava
-  entre casos e o teste passava por acidente. Suprimido no PSScriptAnalyzer com justificativa no
-  topo de `tests/Wpa.Tests.ps1`. **Não "consertar" isso de volta para `$script:`.**
-- **Rejeitado redistribuir o PsExec no repo** — a licença Sysinternals proíbe. Aquisição é via
-  WinGet (`Microsoft.Sysinternals.PsTools`, id exato) com fallback para live.sysinternals.com, sempre
-  com consentimento + validação Authenticode.
-- **`Invoke-Slmgr` captura a saída** (`-Quiet`) decodificando o code page OEM. Sem isso o relatório
-  sai com acento quebrado ("m�quina"). Não voltar para `Start-Process`.
+- **Não existe "apagador" que rode de dentro do Windows.** A chave é protegida pelo **kernel**,
+  não só por ACL — a própria massgrave diz "cannot be deleted normally". `PsExec64 -s` **não**
+  resolve; eu afirmei que sim numa resposta anterior e estava errado. Só cede com o hive
+  descarregado, fora do Windows. Não reabrir essa ideia.
+- **`reagentc /boottore` é o primitivo que remove a presença física** — marca só o próximo boot
+  para o WinRE, sem F8/Shift. Mas o WinRE ainda para no menu esperando clique: desatendido exige
+  injetar `winpeshl.ini` no `winre.wim`.
+- **340k obriga payload idempotente e retomável.** Apagar 340 mil chaves não cabe garantido numa
+  janela. Melhor voltar com limpeza parcial e fazer segunda passada do que ficar preso no WinRE.
+  Isso troca "timeout longo e arriscado" por "timeout curto + N passadas".
+- **BitLocker é gate de abortar, não aviso.** Boot para WinRE com criptografia ligada pode pedir a
+  chave de recuperação = brick remoto. Idem bateria de laptop sem AC.
+- **Rejeitado: baixar o `rearm.cmd` automaticamente.** Seria uma segunda ponte de execução remota,
+  fora da exceção que o `standing.md` abre só para o MAS. Registrado lá.
+- **Caminhos paralelos, decidido pelo agente:** *repair install in-place* (`setup.exe /auto upgrade`)
+  é a **primeira escolha em máquina remota** — roda de dentro do Windows, reconstrói o hive, é
+  suportado, e resolve os 8 anos de updates junto. A automação WinRE é para quando ele não servir.
+- **Descartado o argumento "40k não é seu problema"** — era 340k (usuário corrigiu). Na faixa
+  patológica a árvore é causa, não cicatriz.
 
 ## Next steps (ordered)
-1. **Contagem O(1) da árvore.** `Get-WpaSample` faz `Get-ChildItem` completo; com 200k+ subchaves
-   leva minutos. Trocar por
-   `[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SYSTEM\WPA').SubKeyCount` (campo do hive,
-   instantâneo; fechar o handle). **Isso também corrige um defeito real:** `Measure-WpaGrowth`
-   chama `Get-WpaSample` antes e depois do `Start-Sleep`, então numa máquina inchada a janela real
-   vira ~11 min enquanto o objeto informa `Seconds = 300` — o delta sai inflado e o relatório mente
-   sobre o intervalo.
-2. **`Get-WpaHiveSize`** — tamanho de `C:\Windows\System32\config\SYSTEM` em disco. Sinal mais
-   barato que existe (normal 10–30 MB; centenas de MB confirmam o inchaço sem enumerar nada).
-   Entra em `Get-WpaDiagnostic` e em `Export-WpaReport`.
-3. **`Test-WpaActivatorFootprint`** — a bifurcação que decide todo o resto: canal `KMSCLIENT` em
-   máquina OEM/Retail, `SoftwareLicensingService.KeyManagementServiceMachine` preenchido, e tarefas
-   agendadas com cara de renovador (`Get-ScheduledTask` filtrando `KMS|activat|AutoKMS|Renew`).
-   Se houver ativador vivo, reparar é tratar sintoma — volta em horas.
-4. **Amostragem em `Invoke-WpaSystemProbe`.** Hoje roda `Get-Acl` **por subchave**: em 200k chaves
-   são 200k chamadas, horas. Amostrar algumas centenas e rotular o resultado como amostra.
-5. **`Invoke-WpaTriage` + entrada `0` no topo do menu** — o orquestrador pedido. Chama, em ordem:
-   hive size → activator footprint → `Get-WpaDiagnostic` → `Measure-WpaGrowth` (janela maior) →
-   opcionalmente a sonda como SYSTEM. Emite **veredito + próximo passo**: *ativador presente* /
-   *crescendo agora* / *cicatriz antiga* / *licença ilegítima* / *inconclusivo, faça X*. Quando
-   depender de algo que ele não pode fazer sozinho (PsExec ausente, sem elevação, sem rede),
-   **orienta** em vez de falhar calado.
-6. Teste de comportamento para o veredito em `tests/Wpa.Tests.ps1` (mockar os coletores, afirmar a
-   conclusão de cada combinação) + navindex + gate + commit.
+1. **`Test-WpaRemoteResetSafety`** — o gate que decide se é seguro tentar remoto: BitLocker/Device
+   Encryption em C: (aborta), WinRE presente e habilitado (`reagentc /info`), energia AC em laptop,
+   e se a máquina volta sozinha na rede. Tudo exige elevação; sem ela, `Desconhecido`, nunca "ok".
+2. **Payload do WinRE**: script de limpeza **idempotente e retomável** + watchdog que reinicia
+   incondicionalmente (timeout duro, `wpeutil reboot` sempre, mesmo em falha). É a diferença entre
+   ferramenta e tijolo remoto.
+3. **Staging no `winre.wim`** (montar, injetar payload + `winpeshl.ini`, desmontar) e disparo com
+   `reagentc /boottore` + reboot. Só depois dos gates de 1.
+4. **`Invoke-WpaRemoteOfflineReset`** — orquestra: triagem → risco de reativar → safety → captura
+   (chave de recuperação + chave de produto + relatório **fora** da máquina, confirmado) → staging
+   → disparo → na volta compara hive/contagem e reativa.
+5. **Documentar o repair install** como opção remota preferencial (menu ou README), com o passo a
+   passo e quando escolher cada caminho.
+6. Testes de comportamento para 1 e 4 (mockar coletores, afirmar cada aborto) + navindex + gate.
 
 ## Key files
-- `modules/Ativacao.psm1` — tudo do WPA vive aqui (1094 linhas; header navindex no topo mapeia os 32 símbolos).
-- `tests/Wpa.Tests.ps1` — testes de comportamento com mocks; o padrão `$global:WpaTeste` a seguir.
-- `tests/Menu.Tests.ps1` — testes estáticos (contorno do módulo, invariantes de segurança).
-- `modules/__navi__.md` e `tests/__navi__.md` — mapas das duas pastas que os passos tocam.
+- `modules/Ativacao.psm1` — todo o WPA (38 símbolos; header navindex no topo). Já existem e
+  são reusáveis: `Invoke-WpaTriage`, `Get-WpaReactivationRisk`, `Get-WpaHiveSize`,
+  `Invoke-WpaOfflineResetGuide`, `Get-WpaSample` (contagem O(1)).
+- `modules/Core.psm1` — `New-SyncMasterAtalho` / `Criar-AtalhosSyncMaster` (opção 17).
+- `tests/Wpa.Tests.ps1` — comportamento com mocks; padrão `$global:WpaTeste` (nunca `$script:`).
+- `tests/Menu.Tests.ps1` — invariantes estáticos; o "nunca remove HKLM\SYSTEM\WPA" segue válido
+  e agora tem motivo técnico (kernel), não só política.
+- `modules/__navi__.md`, `tests/__navi__.md` — mapas das pastas que os passos tocam.
+- `.handoff/standing.md` — decisão sobre reset offline ficar como guia, não automatizado.
 
 ## First call
 ```bash
-cd /c/Scripts/Script_Sync/Sync; echo "=== 1 git ==="; git log -3 --oneline; git status --short; echo "=== 2 navi modules ==="; sed -n '1,40p' modules/__navi__.md; echo "=== 3 header ativacao ==="; sed -n '1,45p' modules/Ativacao.psm1; echo "=== 4 sample+growth ==="; sed -n '/^function Get-WpaSample/,/^}/p' modules/Ativacao.psm1; echo "=== 5 menu topo ==="; sed -n '/--- WPA \/ PROTECAO/,/Sua escolha/p' modules/Ativacao.psm1; echo "=== 6 padrao de teste ==="; sed -n '/^Describe .Invoke-WpaGuidedRepair/,/^    }/p' tests/Wpa.Tests.ps1 | head -40
+cd /c/Scripts/Script_Sync/Sync; echo "=== 1 git ==="; git log -3 --oneline; git status --short; echo "=== 2 standing ==="; tail -12 .handoff/standing.md; echo "=== 3 navi modules ==="; sed -n '/Ativacao/,+2p' modules/__navi__.md; echo "=== 4 guia atual ==="; sed -n '/^function Invoke-WpaOfflineResetGuide/,/^}/p' modules/Ativacao.psm1 | head -50; echo "=== 5 risco ==="; sed -n '/^function Get-WpaReactivationRisk/,/^}/p' modules/Ativacao.psm1 | head -40; echo "=== 6 menu 18 ==="; sed -n "/'18' {/,/^                }/p" modules/Ativacao.psm1; echo "=== 7 padrao teste ==="; sed -n '/^Describe .Invoke-WpaOfflineResetGuide/,/^}/p' tests/Wpa.Tests.ps1 | head -30
 ```
 
 ## Open / blockers
-- **Nenhum bloqueio.** Aviso operacional: a máquina de desenvolvimento está licenciada e com árvore
-  WPA pequena, então o caso extremo (centenas de milhares de subchaves) **não dá para reproduzir
-  aqui** — os passos 1 e 4 têm de ser validados por teste com mock, não por execução real.
-- Sessão em sessão 0 do Windows (VS Code tunnel) falha ao instalar MSIX pelo winget (`0x80070520`).
-  Não afeta este repo, afeta qualquer tentativa de instalar o PsTools a partir daqui.
+- **Não dá para reproduzir o caso aqui.** Esta máquina tem 116 subchaves, é OEM_DM licenciada e
+  a sessão **não é elevada** — `reagentc /info` e `Get-BitLockerVolume` deram acesso negado. Todo
+  o passo 1 tem de ser validado por mock, e o staging do `winre.wim` (passos 2-3) precisa de uma
+  VM descartável antes de chegar perto de máquina de cliente.
+- **Pergunta em aberto para o dono:** a máquina remota de 340k tem BitLocker? É o único fato que
+  decide se o caminho WinRE é viável nela ou se sobra só o repair install.
+- Sessão em sessão 0 (VS Code tunnel) falha ao instalar MSIX pelo winget (`0x80070520`).
 
 ## Skills
 - navindex
 
 ## Effort
-**Médio** para o passo 1. É pouca linha, mas `Get-WpaSample` é chamado por `Get-WpaDiagnostic`,
-`Measure-WpaGrowth` e `Invoke-WpaSystemProbe` — trocar a fonte da contagem sem ler os três callers
-é como se ship um bug silencioso de medição. Sobe para **alto** se `SubKeyCount` divergir da
-enumeração (chaves ilegíveis por ACL contam no hive e não no `Get-ChildItem`): aí a divergência
-vira sinal de diagnóstico e muda o desenho, não é erro. Raciocínio não é o gargalo — o custo real é
-a suíte Pester (~8 s por commit por causa do gate pre-commit).
+**Alto** para o passo 1. Não é volume de código — é que cada gate que falhar em silêncio vira um
+laptop inacessível a quilômetros de distância, e o custo de errar não aparece em teste: aparece
+quando alguém precisa pegar a estrada. BitLocker em particular tem várias formas (Device
+Encryption, suspensão, protetor TPM-only) e `Get-BitLockerVolume` não é a única fonte de verdade.
+Baixa para **médio** nos passos 4-6, que são orquestração e texto sobre peças já prontas.
+Raciocínio não é o gargalo nos passos 2-3 — lá o gargalo é ter uma VM para testar de verdade.
