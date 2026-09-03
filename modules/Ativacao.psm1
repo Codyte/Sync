@@ -1,36 +1,37 @@
 # ====================== BEGIN NAV INDEX ======================
 # NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
-#   L47    Get-WindowsDirectory
-#   L56    Invoke-Slmgr
-#   L109   Get-WpaWindows10
-#   L125   Get-WpaSample
-#   L148   Get-WpaLicenseStatusText
-#   L162   Get-WpaDiagnostic
-#   L211   Measure-WpaGrowth
-#   L238   Test-WpaPsExec64File
-#   L253   Find-WpaPsExec64
-#   L274   Install-WpaPsExec64
-#   L331   Invoke-WpaSystemCount
-#   L381   Invoke-WpaActivationRepair
-#   L395   Invoke-WpaLicenseFileRepair
-#   L407   Get-WpaActivationState
-#   L415   Get-WpaLicenseDetail
-#   L426   Invoke-WpaLicensingDiag
-#   L447   Export-WpaReport
-#   L474   Backup-WpaRegistry
-#   L495   Repair-WpaServices
-#   L534   Clear-WpaKmsConfig
-#   L543   Reset-WpaTokens
-#   L590   Repair-WpaSystemFiles
-#   L613   Uninstall-WpaProductKey
-#   L623   Invoke-WpaRearm
-#   L632   Invoke-WpaGuidedRepair
-#   L673   Menu-GerenciamentoWpa
-#   L864   Menu-Ativacao
-#   L883   Mostrar-StatusAtivacao
-#   L892   Instalar-ChaveProduto
-#   L918   Ati
-#   L972   Ativar-Windows
+#   L48    Get-WindowsDirectory
+#   L57    Invoke-Slmgr
+#   L125   Get-WpaSupportedWindows
+#   L142   Get-WpaSample
+#   L165   Get-WpaLicenseStatusText
+#   L179   Get-WpaDiagnostic
+#   L228   Measure-WpaGrowth
+#   L255   Test-WpaPsExec64File
+#   L270   Find-WpaPsExec64
+#   L291   Install-WpaPsExec64
+#   L348   Invoke-WpaSystemProbe
+#   L428   Invoke-WpaActivationRepair
+#   L442   Invoke-WpaLicenseFileRepair
+#   L454   Get-WpaActivationState
+#   L475   Get-WpaLicenseDetail
+#   L486   Invoke-WpaLicensingDiag
+#   L507   Export-WpaReport
+#   L534   Backup-WpaRegistry
+#   L558   Repair-WpaServices
+#   L597   Clear-WpaKmsConfig
+#   L606   Reset-WpaTokens
+#   L653   Repair-WpaSystemFiles
+#   L676   Uninstall-WpaProductKey
+#   L686   Invoke-WpaRearm
+#   L695   Invoke-WpaPhoneActivation
+#   L722   Invoke-WpaGuidedRepair
+#   L772   Menu-GerenciamentoWpa
+#   L977   Menu-Ativacao
+#   L996   Mostrar-StatusAtivacao
+#   L1005  Instalar-ChaveProduto
+#   L1031  Ati
+#   L1085  Ativar-Windows
 # ======================= END NAV INDEX =======================
 
 <#
@@ -57,10 +58,13 @@ function Invoke-Slmgr {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('/dlv','/dli','/xpr','/ipk','/ato','/rilc','/ckms','/upk','/cpky','/rearm')]
+        [ValidateSet('/dlv','/dli','/xpr','/dti','/ipk','/ato','/atp','/rilc','/ckms','/upk','/cpky','/rearm')]
         [string]$Operation,
 
         [string]$ProductKey,
+
+        # Somente /atp: ID de confirmacao de 48 digitos dado pela central.
+        [string]$ConfirmationId,
 
         # Devolve a saida em vez de imprimir. Usado pelos relatorios.
         [switch]$Quiet
@@ -73,6 +77,17 @@ function Invoke-Slmgr {
     }
     elseif ($PSBoundParameters.ContainsKey('ProductKey')) {
         throw 'ProductKey so pode ser usado com /ipk.'
+    }
+
+    if ($Operation -eq '/atp') {
+        $digits = ($ConfirmationId -replace '[\s-]', '')
+        if ($digits -notmatch '^\d{48}$') {
+            throw 'ID de confirmacao invalido. A central fornece 48 digitos.'
+        }
+        $ConfirmationId = $digits
+    }
+    elseif ($PSBoundParameters.ContainsKey('ConfirmationId')) {
+        throw 'ConfirmationId so pode ser usado com /atp.'
     }
 
     if ($Operation -notin @('/dlv','/dli','/xpr')) { Require-Admin }
@@ -88,6 +103,7 @@ function Invoke-Slmgr {
 
     $arguments = @('//nologo', $slmgr, $Operation)
     if ($Operation -eq '/ipk') { $arguments += $ProductKey.ToUpperInvariant() }
+    if ($Operation -eq '/atp') { $arguments += $ConfirmationId }
 
     $previousEncoding = [Console]::OutputEncoding
     try {
@@ -106,18 +122,19 @@ function Invoke-Slmgr {
     $output | Out-Host
 }
 
-function Get-WpaWindows10 {
+function Get-WpaSupportedWindows {
     $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
     $version = $null
     if (-not [version]::TryParse([string]$os.Version, [ref]$version)) {
         throw "Versao do Windows invalida: '$($os.Version)'."
     }
 
+    # Windows 11 se reporta como 10.0.22000+; o licenciamento (sppsvc, slmgr,
+    # tokens.dat) e identico ao do Windows 10. Server e 32 bits ficam de fora.
     if (-not [Environment]::Is64BitOperatingSystem -or
         [int]$os.ProductType -ne 1 -or
-        $version.Major -ne 10 -or
-        [int]$os.BuildNumber -ge 22000) {
-        throw 'O gerenciamento WPA inicial suporta somente Windows 10 desktop x64.'
+        $version.Major -ne 10) {
+        throw 'O gerenciamento WPA suporta somente Windows 10/11 desktop x64.'
     }
     return $os
 }
@@ -160,7 +177,7 @@ function Get-WpaLicenseStatusText {
 }
 
 function Get-WpaDiagnostic {
-    $os = Get-WpaWindows10
+    $os = Get-WpaSupportedWindows
     $sample = Get-WpaSample
 
     $licenses = @()
@@ -212,7 +229,7 @@ function Measure-WpaGrowth {
     [CmdletBinding()]
     param([ValidateRange(5,600)][int]$Seconds = 30)
 
-    $null = Get-WpaWindows10
+    $null = Get-WpaSupportedWindows
     $before = Get-WpaSample
     Start-Sleep -Seconds $Seconds
     $after = Get-WpaSample
@@ -275,7 +292,7 @@ function Install-WpaPsExec64 {
     [CmdletBinding()]
     param([switch]$AcceptLicense)
 
-    $null = Get-WpaWindows10
+    $null = Get-WpaSupportedWindows
     if (-not $AcceptLicense) {
         throw 'O download exige aceitacao explicita dos termos do Sysinternals.'
     }
@@ -328,11 +345,16 @@ function Install-WpaPsExec64 {
     }
 }
 
-function Invoke-WpaSystemCount {
+function Invoke-WpaSystemProbe {
+    <#
+      Le a arvore WPA como SYSTEM. A contagem sozinha nunca explicou nada: o que
+      explica e quantas subchaves o administrador NAO enxerga e quantos perfis de
+      ACL distintos existem ali. Por isso o PsExec paga o proprio custo.
+    #>
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$PsExecPath)
 
-    $null = Get-WpaWindows10
+    $null = Get-WpaSupportedWindows
     Require-Admin
     if (-not (Test-WpaPsExec64File -Path $PsExecPath)) {
         throw 'PsExec64 ausente ou sem assinatura Microsoft valida.'
@@ -343,7 +365,24 @@ function Invoke-WpaSystemCount {
         throw "Windows PowerShell ausente: $powershell"
     }
 
-    $command = "`$ErrorActionPreference='Stop'; @(Get-ChildItem -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\SYSTEM\WPA' -ErrorAction Stop).Count"
+    $command = @'
+$ErrorActionPreference = 'Stop'
+$path = 'Registry::HKEY_LOCAL_MACHINE\SYSTEM\WPA'
+$keys = @(Get-ChildItem -LiteralPath $path)
+$groups = @{}
+foreach ($key in $keys) {
+    $sddl = try { (Get-Acl -LiteralPath $key.PSPath).Sddl } catch { '<ILEGIVEL>' }
+    if ($groups.ContainsKey($sddl)) { $groups[$sddl]++ } else { $groups[$sddl] = 1 }
+}
+$owner = try { (Get-Acl -LiteralPath $path).Owner } catch { '<ILEGIVEL>' }
+[pscustomobject]@{
+    Count     = $keys.Count
+    RootOwner = $owner
+    AclGroups = @($groups.GetEnumerator() | ForEach-Object {
+        [pscustomobject]@{ Subkeys = $_.Value; Sddl = $_.Key }
+    })
+} | ConvertTo-Json -Depth 4 -Compress
+'@
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
     $temporaryDirectory = Get-SyncMasterDataDir -SubPasta 'Temp'
     $token = [guid]::NewGuid().ToString('N')
@@ -364,14 +403,22 @@ function Invoke-WpaSystemCount {
             throw "PsExec64/consulta WPA falhou com codigo $($process.ExitCode). $detail"
         }
 
-        $countLine = Get-Content -LiteralPath $standardOutput -ErrorAction Stop |
-            Where-Object { $_.Trim() -match '^\d+$' } | Select-Object -Last 1
-        $count = 0
-        if ($null -eq $countLine -or -not [int]::TryParse($countLine.Trim(), [ref]$count)) {
-            throw 'A consulta WPA como SYSTEM nao retornou uma contagem valida.'
+        $json = (Get-Content -LiteralPath $standardOutput -Raw -ErrorAction Stop).Trim()
+        if ([string]::IsNullOrWhiteSpace($json)) {
+            throw 'A consulta WPA como SYSTEM nao retornou dados.'
         }
+        $probe = $json | ConvertFrom-Json -ErrorAction Stop
+
+        $adminCount = (Get-WpaSample).SubkeyCount
         Registrar-Log 'Consulta somente leitura de WPA como SYSTEM concluida'
-        return $count
+        return [PSCustomObject]@{
+            SystemCount     = [int]$probe.Count
+            AdminCount      = [int]$adminCount
+            HiddenFromAdmin = ([int]$probe.Count - [int]$adminCount)
+            RootOwner       = [string]$probe.RootOwner
+            AclProfiles     = @($probe.AclGroups).Count
+            AclGroups       = @($probe.AclGroups)
+        }
     }
     finally {
         Remove-Item -LiteralPath $standardOutput, $standardError -Force -ErrorAction SilentlyContinue
@@ -379,7 +426,7 @@ function Invoke-WpaSystemCount {
 }
 
 function Invoke-WpaActivationRepair {
-    $null = Get-WpaWindows10
+    $null = Get-WpaSupportedWindows
     Require-Admin
     $service = Get-Service -Name sppsvc -ErrorAction Stop
     if ($service.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Running) {
@@ -393,7 +440,7 @@ function Invoke-WpaActivationRepair {
 }
 
 function Invoke-WpaLicenseFileRepair {
-    $null = Get-WpaWindows10
+    $null = Get-WpaSupportedWindows
     Require-Admin
     Invoke-Slmgr -Operation '/rilc'
     Registrar-Log 'Reinstalacao das licencas conhecidas concluida via slmgr /rilc'
@@ -405,16 +452,29 @@ function Invoke-WpaLicenseFileRepair {
 # ---------------------------------------------------------------------------
 
 function Get-WpaActivationState {
-    # $true quando alguma licenca do Windows esta com LicenseStatus = 1 (Licenciado).
-    $licensed = @(Get-CimInstance -ClassName SoftwareLicensingProduct `
+    <#
+      Estado agregado do licenciamento. Sair de 'Sem licenca' para um periodo de
+      grace e progresso real, entao a escada de reparo precisa distinguir os dois
+      em vez de tratar tudo que nao e 1 como o mesmo fracasso.
+    #>
+    $statuses = @(Get-CimInstance -ClassName SoftwareLicensingProduct `
             -Filter "PartialProductKey IS NOT NULL AND Name LIKE 'Windows%'" -ErrorAction SilentlyContinue |
-        Where-Object { [int]$_.LicenseStatus -eq 1 })
-    return ($licensed.Count -gt 0)
+        ForEach-Object { [int]$_.LicenseStatus })
+
+    $code = if ($statuses -contains 1) { 1 }
+            elseif ($statuses.Count -gt 0) { ($statuses | Sort-Object -Descending)[0] }
+            else { 0 }
+
+    [PSCustomObject]@{
+        Licensed   = ($code -eq 1)
+        StatusCode = $code
+        StatusText = (Get-WpaLicenseStatusText -Status $code)
+    }
 }
 
 function Get-WpaLicenseDetail {
     # Saida oficial do slmgr: /dlv (detalhado), /dli (resumo), /xpr (expiracao).
-    $null = Get-WpaWindows10
+    $null = Get-WpaSupportedWindows
     foreach ($operation in '/dlv', '/dli', '/xpr') {
         [PSCustomObject]@{
             Operation = $operation
@@ -425,7 +485,7 @@ function Get-WpaLicenseDetail {
 
 function Invoke-WpaLicensingDiag {
     # Ferramenta oficial da Microsoft: gera relatorio XML e um cab com os logs.
-    $null = Get-WpaWindows10
+    $null = Get-WpaSupportedWindows
     Require-Admin
     $executable = Join-Path (Get-WindowsDirectory) 'System32\licensingdiag.exe'
     if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
@@ -473,7 +533,7 @@ function Export-WpaReport {
 
 function Backup-WpaRegistry {
     # Exporta HKLM\SYSTEM\WPA para .reg. Pre-requisito das correcoes invasivas.
-    $null = Get-WpaWindows10
+    $null = Get-WpaSupportedWindows
     Require-Admin
     $directory = Get-SyncMasterDataDir -SubPasta 'Backups\WPA'
     $file = Join-Path $directory ('WPA-{0:yyyyMMdd-HHmmss}.reg' -f (Get-Date))
@@ -488,13 +548,16 @@ function Backup-WpaRegistry {
     if ($LASTEXITCODE -ne 0) {
         Write-Warning 'A exportacao terminou com aviso; parte das subchaves pode nao estar no arquivo.'
     }
+    # Honestidade: reimportar essa arvore nao desfaz um /upk nem devolve licenca.
+    # O arquivo serve para comparar antes/depois e para levar ao suporte.
+    Write-Warning 'O .reg preserva evidencia da arvore WPA; ele NAO restaura licenca nem desfaz /upk.'
     Registrar-Log "Backup da chave WPA gravado em $file"
     return $file
 }
 
 function Repair-WpaServices {
     # Reabilita e inicia sppsvc/ClipSVC. Causa comum apos "debloaters" e tweaks.
-    $null = Get-WpaWindows10
+    $null = Get-WpaSupportedWindows
     Require-Admin
     $wanted = @(
         [PSCustomObject]@{ Name = 'sppsvc'; StartType = 'Automatic' }
@@ -533,7 +596,7 @@ function Repair-WpaServices {
 
 function Clear-WpaKmsConfig {
     # Limpa o nome de KMS gravado na maquina e tenta a ativacao oficial de novo.
-    $null = Get-WpaWindows10
+    $null = Get-WpaSupportedWindows
     Require-Admin
     Invoke-Slmgr -Operation '/ckms'
     Invoke-Slmgr -Operation '/ato'
@@ -545,7 +608,7 @@ function Reset-WpaTokens {
       Reconstroi o armazenamento de licencas (tokens.dat). O arquivo antigo e
       RENOMEADO, nunca apagado, e a chave de registro e exportada antes.
     #>
-    $null = Get-WpaWindows10
+    $null = Get-WpaSupportedWindows
     Require-Admin
     $registryBackup = Backup-WpaRegistry
 
@@ -612,7 +675,7 @@ function Repair-WpaSystemFiles {
 
 function Uninstall-WpaProductKey {
     # /upk desinstala a chave em uso; /cpky tira a copia dela do registro.
-    $null = Get-WpaWindows10
+    $null = Get-WpaSupportedWindows
     Require-Admin
     $null = Backup-WpaRegistry
     Invoke-Slmgr -Operation '/upk'
@@ -622,11 +685,38 @@ function Uninstall-WpaProductKey {
 
 function Invoke-WpaRearm {
     # Reinicia os temporizadores de licenciamento. Contagem limitada; exige reiniciar.
-    $null = Get-WpaWindows10
+    $null = Get-WpaSupportedWindows
     Require-Admin
     $null = Backup-WpaRegistry
     Invoke-Slmgr -Operation '/rearm'
     Registrar-Log 'slmgr /rearm executado; reinicializacao necessaria'
+}
+
+function Invoke-WpaPhoneActivation {
+    <#
+      Caminho oficial quando a ativacao pela internet nao passa (rede bloqueada,
+      reinstalacao em hardware ja licenciado). /dti mostra o ID de instalacao que
+      a central pede; /atp grava o ID de confirmacao que ela devolve.
+    #>
+    [CmdletBinding()]
+    param([string]$ConfirmationId)
+
+    $null = Get-WpaSupportedWindows
+    Require-Admin
+
+    if (-not $ConfirmationId) {
+        Write-Host 'ID de instalacao (leia para a central):' -ForegroundColor Cyan
+        Invoke-Slmgr -Operation '/dti'
+        Write-Host 'Ligue para a central de ativacao. O assistente oficial (slui 4) mostra o numero do seu pais.' -ForegroundColor Yellow
+        $ConfirmationId = Read-Host 'ID de confirmacao (48 digitos; Enter cancela)'
+        if (-not $ConfirmationId) {
+            Write-Host 'Cancelado.' -ForegroundColor DarkGray
+            return
+        }
+    }
+
+    Invoke-Slmgr -Operation '/atp' -ConfirmationId $ConfirmationId
+    Registrar-Log 'Ativacao por telefone concluida via /atp'
 }
 
 function Invoke-WpaGuidedRepair {
@@ -634,12 +724,14 @@ function Invoke-WpaGuidedRepair {
       Escada de reparo: para no primeiro degrau que deixar o Windows licenciado.
       Cada degrau pede confirmacao. Nenhum degrau apaga a arvore de registro.
     #>
-    $null = Get-WpaWindows10
+    $null = Get-WpaSupportedWindows
     Require-Admin
-    if (Get-WpaActivationState) {
+    $state = Get-WpaActivationState
+    if ($state.Licensed) {
         Write-Host 'O Windows ja consta como licenciado. Nada a corrigir.' -ForegroundColor Green
         return
     }
+    Write-Host "Estado inicial: $($state.StatusText)" -ForegroundColor Cyan
 
     $steps = @(
         [PSCustomObject]@{ Nome = 'Reparar servicos sppsvc/ClipSVC'; Acao = { Repair-WpaServices | Format-Table -AutoSize | Out-Host } }
@@ -658,20 +750,27 @@ function Invoke-WpaGuidedRepair {
         try { & $step.Acao }
         catch { Write-Warning "$($step.Nome) falhou: $($_.Exception.Message)" }
 
-        if (Get-WpaActivationState) {
+        $newState = Get-WpaActivationState
+        if ($newState.Licensed) {
             Write-Host "Windows licenciado apos: $($step.Nome)" -ForegroundColor Green
             Registrar-Log "Reparo guiado concluido no degrau: $($step.Nome)"
             return
         }
-        Write-Host "Ainda sem licenca apos: $($step.Nome)" -ForegroundColor Yellow
+        if ($newState.StatusCode -ne $state.StatusCode) {
+            Write-Host "Progresso: '$($state.StatusText)' virou '$($newState.StatusText)' apos: $($step.Nome)" -ForegroundColor Cyan
+        }
+        else {
+            Write-Host "Ainda em '$($newState.StatusText)' apos: $($step.Nome)" -ForegroundColor Yellow
+        }
+        $state = $newState
     }
 
-    Write-Warning 'A escada terminou sem licenciar o Windows. Gere o relatorio e leve ao Suporte da Microsoft.'
+    Write-Warning "A escada terminou em '$($state.StatusText)'. Tente a ativacao por telefone ou leve o relatorio ao Suporte da Microsoft."
     Registrar-Log 'Reparo guiado terminou sem ativacao'
 }
 
 function Menu-GerenciamentoWpa {
-    try { $null = Get-WpaWindows10 }
+    try { $null = Get-WpaSupportedWindows }
     catch {
         Write-Warning $_.Exception.Message
         Pause-Script
@@ -680,16 +779,16 @@ function Menu-GerenciamentoWpa {
 
     do {
         Clear-Host
-        Write-Host '--- WPA / PROTECAO DE SOFTWARE (WINDOWS 10 x64) ---' -ForegroundColor Cyan
+        Write-Host '--- WPA / PROTECAO DE SOFTWARE (WINDOWS 10/11 x64) ---' -ForegroundColor Cyan
         Write-Host '[ DIAGNOSTICO - somente leitura ]' -ForegroundColor DarkCyan
         Write-Host '1  - Diagnostico geral (licenca, sppsvc, eventos, subchaves)'
         Write-Host '2  - Medir crescimento das subchaves WPA por um intervalo'
-        Write-Host '3  - Contar subchaves como SYSTEM com PsExec64 validado'
+        Write-Host '3  - Sondar a arvore como SYSTEM: subchaves ocultas e perfis de ACL (PsExec64)'
         Write-Host '4  - Detalhes oficiais da licenca (slmgr /dlv, /dli, /xpr)'
         Write-Host '5  - Salvar relatorio completo em arquivo'
         Write-Host '6  - Relatorio oficial licensingdiag.exe (XML + cab)'
         Write-Host '[ CORRECAO - do menos ao mais invasivo ]' -ForegroundColor DarkCyan
-        Write-Host '7  - Backup da chave HKLM\SYSTEM\WPA em .reg'
+        Write-Host '7  - Exportar HKLM\SYSTEM\WPA em .reg (evidencia; nao e rollback)'
         Write-Host '8  - Reparar servicos sppsvc/ClipSVC (reabilitar e iniciar)'
         Write-Host '9  - Reiniciar sppsvc e tentar ativacao oficial (/ato)'
         Write-Host '10 - Reinstalar licencas conhecidas (/rilc)'
@@ -699,6 +798,7 @@ function Menu-GerenciamentoWpa {
         Write-Host '14 - Desinstalar a chave de produto (/upk + /cpky)'
         Write-Host '15 - Rearm do licenciamento (/rearm; limitado, exige reiniciar)'
         Write-Host '16 - Reparo guiado escalonado (para quando ativar)' -ForegroundColor Yellow
+        Write-Host '17 - Ativacao por telefone (/dti + /atp), quando a internet nao passa'
         Write-Host 'A  - Abrir a pagina de Ativacao do Windows'
         Write-Host 'Q  - Voltar'
         Write-Warning 'A quantidade isolada de subchaves nao define saude. O Sync Master nunca apaga HKLM\SYSTEM\WPA.'
@@ -753,8 +853,14 @@ function Menu-GerenciamentoWpa {
                         }
                         $psExec = Install-WpaPsExec64 -AcceptLicense
                     }
-                    $systemCount = Invoke-WpaSystemCount -PsExecPath $psExec
-                    Write-Host "Subchaves WPA visiveis como SYSTEM: $systemCount" -ForegroundColor Cyan
+                    $probe = Invoke-WpaSystemProbe -PsExecPath $psExec
+                    $probe | Select-Object SystemCount,AdminCount,HiddenFromAdmin,RootOwner,AclProfiles | Format-List
+                    if ($probe.HiddenFromAdmin -gt 0) {
+                        Write-Warning "$($probe.HiddenFromAdmin) subchave(s) existem para o SYSTEM e nao para o administrador. E ai que o crescimento se esconde."
+                    }
+                    $probe.AclGroups | Sort-Object Subkeys -Descending | Select-Object -First 5 |
+                        Select-Object Subkeys,@{n='Sddl';e={ $_.Sddl.Substring(0, [Math]::Min(60, $_.Sddl.Length)) }} |
+                        Format-Table -AutoSize
                     Pause-Script
                 }
                 '4' {
@@ -843,6 +949,13 @@ function Menu-GerenciamentoWpa {
                 }
                 '16' {
                     Invoke-WpaGuidedRepair
+                    Pause-Script
+                }
+                '17' {
+                    Write-Warning 'Use quando /ato nao passa por rede. Voce vai precisar ligar para a central da Microsoft.'
+                    if (Confirm-Action 'Iniciar a ativacao por telefone (/dti + /atp)?') {
+                        Invoke-WpaPhoneActivation
+                    }
                     Pause-Script
                 }
                 'A' {

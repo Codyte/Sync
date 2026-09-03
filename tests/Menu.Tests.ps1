@@ -106,7 +106,7 @@ Describe 'Menu WPA (2 -> 2 -> 6)' {
     It 'so executa o PsExec depois de validar produto e assinatura Microsoft' {
         $script:AtivacaoText | Should -Match 'Get-AuthenticodeSignature'
         $script:AtivacaoText | Should -Match 'Sysinternals PsExec'
-        $corpo = [regex]::Match($script:AtivacaoText, '(?ms)^function Invoke-WpaSystemCount \{.*?^\}').Value
+        $corpo = [regex]::Match($script:AtivacaoText, '(?ms)^function Invoke-WpaSystemProbe \{.*?^\}').Value
         $corpo | Should -Match 'Test-WpaPsExec64File'
     }
 }
@@ -160,7 +160,8 @@ Describe 'Arsenal de correcao WPA' {
         $degraus.Count | Should -BeGreaterThan 3
         $degraus[0] | Should -Match 'servicos'
         $degraus[-1] | Should -Match 'DISM'
-        $corpo | Should -Match 'if \(Get-WpaActivationState\)'
+        $corpo | Should -Match '\$newState = Get-WpaActivationState'
+        $corpo | Should -Match 'if \(\$newState\.Licensed\)'
     }
 
     # Backup antes de mexer: tokens.dat, /upk e /rearm sao caminhos sem volta facil.

@@ -1,4 +1,4 @@
-# __navi__ · `tests/` — 11 files → code symbols / text NAV ranges
+# __navi__ · `tests/` — 12 files → code symbols / text NAV ranges
 <!-- navindex · 2026-09-03 · DO NOT EDIT BY HAND; regen via navindex skill -->
 ↑ repo tree: [`../__navi__.md`](../__navi__.md)
 
@@ -8,9 +8,10 @@
 - **Ferramentas.Tests.ps1** (59 ln)
 - **Hardware.Tests.ps1** (57 ln)
 - **Manifest.Tests.ps1** (65 ln)
-- **Menu.Tests.ps1** (220 ln)
+- **Menu.Tests.ps1** (221 ln)
 - **ModuleLoading.Tests.ps1** (27 ln)
 - **Otimizacao.Tests.ps1** (531 ln)
 - **PowerShellUpdate.Tests.ps1** (169 ln)
 - **Rede.Tests.ps1** (64 ln)
 - **Sync.Tests.ps1** (364 ln)
+- **Wpa.Tests.ps1** (238 ln)
