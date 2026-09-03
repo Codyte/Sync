@@ -34,6 +34,7 @@
         # Core
         'Get-SyncMasterDataDir','Start-SyncMaster','Start-SyncMasterLog','Stop-SyncMasterLog','Pause-Script',
         'Confirm-Action','Registrar-Log','Visualizar-Logs','Ensure-Dir','Test-IsAdmin','Require-Admin',
+        'New-SyncMasterAtalho','Criar-AtalhosSyncMaster',
         # Menu (data-driven, Fase C)
         'Get-MenuPrincipal','Show-MenuPrincipal',
         # Otimizacao

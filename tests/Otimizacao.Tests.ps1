@@ -529,3 +529,68 @@ Describe 'Ensure-Dir' {
         { Ensure-Dir -Path $p } | Should -Throw
     }
 }
+
+Describe 'New-SyncMasterAtalho (Area de Trabalho + Menu Iniciar)' {
+    BeforeEach {
+        $script:Raiz = Split-Path $PSScriptRoot -Parent
+        $script:Base = Join-Path ([IO.Path]::GetTempPath()) ("atalho-" + [guid]::NewGuid().ToString('N'))
+        $script:Desktop = Join-Path $script:Base 'Desktop'
+        $script:Iniciar = Join-Path $script:Base 'Programs'
+    }
+
+    AfterEach {
+        Remove-Item -LiteralPath $script:Base -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    # O pedido e um atalho nos DOIS lugares: a Area de Trabalho e o clique direto,
+    # o Menu Iniciar e a pasta que a busca do Windows indexa.
+    It 'cria o atalho nos dois destinos de uma vez' {
+        $criados = New-SyncMasterAtalho -Destinos @($script:Desktop, $script:Iniciar)
+
+        @($criados).Count | Should -Be 2
+        Test-Path -LiteralPath (Join-Path $script:Desktop 'Sync Master.lnk') | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $script:Iniciar 'Sync Master.lnk') | Should -BeTrue
+    }
+
+    # O .lnk guarda caminho, nao conteudo: e por isso que atualizar esta copia (git pull
+    # ou instalador) nao exige regerar o atalho. Se o alvo deixar de ser o launcher
+    # desta copia, essa propriedade morre calada.
+    It 'aponta para o launcher desta copia, com o PowerShell do sistema' {
+        New-SyncMasterAtalho -Destinos @($script:Desktop) | Out-Null
+
+        $lnk = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $script:Desktop 'Sync Master.lnk'))
+        $lnk.TargetPath | Should -BeLike '*powershell.exe'
+        $lnk.Arguments | Should -BeLike ('*' + (Join-Path $script:Raiz 'Sync_Master.ps1') + '*')
+        $lnk.WorkingDirectory | Should -Be $script:Raiz
+    }
+
+    # Perfil redirecionado ou politica de grupo derruba uma pasta so. Ficar sem o item
+    # no Menu Iniciar porque a Area de Trabalho falhou seria perder as duas por uma.
+    It 'um destino que falha nao impede o outro' {
+        $invalido = Join-Path $script:Base 'in|valido'
+
+        $criados = New-SyncMasterAtalho -Destinos @($invalido, $script:Iniciar) -WarningAction SilentlyContinue
+
+        @($criados).Count | Should -Be 1
+        Test-Path -LiteralPath (Join-Path $script:Iniciar 'Sync Master.lnk') | Should -BeTrue
+    }
+
+    It 'ignora destino vazio que o Windows nao informou' {
+        $criados = New-SyncMasterAtalho -Destinos @('', $script:Iniciar) -WarningAction SilentlyContinue
+
+        @($criados).Count | Should -Be 1
+    }
+
+    It 'refaz o atalho por cima sem duplicar quando rodado de novo' {
+        New-SyncMasterAtalho -Destinos @($script:Desktop) | Out-Null
+        New-SyncMasterAtalho -Destinos @($script:Desktop) | Out-Null
+
+        @(Get-ChildItem -LiteralPath $script:Desktop -Filter '*.lnk').Count | Should -Be 1
+    }
+
+    It 'nao escreve nada com -WhatIf' {
+        New-SyncMasterAtalho -Destinos @($script:Desktop) -WhatIf | Out-Null
+
+        Test-Path -LiteralPath (Join-Path $script:Desktop 'Sync Master.lnk') | Should -BeFalse
+    }
+}

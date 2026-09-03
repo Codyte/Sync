@@ -44,7 +44,7 @@ Describe 'Get-MenuPrincipal (tabela)' {
 
     It 'cobre os Ids esperados' {
         $ids = $script:Entradas.Id
-        foreach ($req in '1','5','10','15','APP','Q') { $ids | Should -Contain $req }
+        foreach ($req in '1','5','10','15','17','APP','Q') { $ids | Should -Contain $req }
     }
 
     It 'todo Comando real (nao-sentinela, nao-local) resolve para uma funcao' {

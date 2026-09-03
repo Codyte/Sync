@@ -34,6 +34,7 @@ function Get-MenuPrincipal {
         [PSCustomObject]@{ Id='13';  Texto='Diagnostico de Rede';                                  Comando='Menu-DiagnosticoRede';         Cor='Gray'   }
         [PSCustomObject]@{ Id='15';  Texto='Menu de Atualização do PowerShell';                    Comando='Menu-AtualizacaoPowerShell';   Cor='Gray'   }
         [PSCustomObject]@{ Id='16';  Texto='Instalar Ferramentas de Gerenciamento (winget)';      Comando='Menu-InstalarFerramentas';     Cor='Gray'   }
+        [PSCustomObject]@{ Id='17';  Texto='Criar Atalho (Área de Trabalho + Menu Iniciar)';       Comando='Criar-AtalhosSyncMaster';      Cor='Cyan'   }
         [PSCustomObject]@{ Id='APP'; Texto='Criar Aplicativo de Script';                           Comando='Criar-App';                    Cor='Red'    }
         [PSCustomObject]@{ Id='Q';   Texto='Sair';                                                 Comando='__SAIR__';                     Cor='Gray'   }
     )

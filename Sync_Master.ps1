@@ -3,7 +3,7 @@
 #   L32    PARTE 1: BLOCO DE PARÂMETROS ÚNICO ---
 #   L50    New-SyncMasterRelaunchArguments
 #   L76    Start-SyncMasterInPowerShell7
-#   L103   PARTE 1.1: Relançamento automático em PowerShell 7+ (compatível PS 5)
+#   L103   PARTE 1.1: Relançamento automático em PowerShell 7+ (compatível PS 5) 
 #   L146   PARTE 2: REGIÃO CENTRALIZADA DE FUNÇÕES ---
 #   L221   Menu-Otimizacao
 #   L253   Criar-PontoRestauracao
@@ -11,14 +11,14 @@
 #   L473   Menu-LimpezaDisco
 #   L528   Utilitários robustos ===============================================
 #   L549   Menu-ReparoSistema
-#   L577   Menu-Desempenho
-#   L642   Menu-GerenciarAgentes
-#   L680   Gerenciar-ServicoDeAgente
-#   L730   Menu-Ferramentas
-#   L758   Utilitário: enviar arquivo para a Lixeira (PS 5/7) ---
-#   L793   Criar-App
-#   L862   Aliases de verbo aprovado (retrocompat) ---
-#   L870   PARTE 3: LÓGICA DE EXECUÇÃO PRINCIPAL ---
+#   L579   Menu-Desempenho
+#   L644   Menu-GerenciarAgentes
+#   L682   Gerenciar-ServicoDeAgente
+#   L732   Menu-Ferramentas
+#   L760   Utilitário: enviar arquivo para a Lixeira (PS 5/7) ---
+#   L795   Criar-App
+#   L864   Aliases de verbo aprovado (retrocompat) ---
+#   L872   PARTE 3: LÓGICA DE EXECUÇÃO PRINCIPAL ---
 # ======================= END NAV INDEX =======================
 
 # ===================================================================

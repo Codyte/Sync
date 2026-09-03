@@ -117,6 +117,83 @@ function Start-SyncMaster {
     & $entry @args
 }
 
+# Cria o atalho do Sync Master na Area de Trabalho E no Menu Iniciar (o Menu Iniciar e
+# a pasta que a busca do Windows indexa; a Area de Trabalho e o clique direto).
+# Um .lnk guarda CAMINHO, nao conteudo: apontado para esta copia, tanto um 'git pull' no
+# repo quanto uma atualizacao pelo instalador -- que troca o conteudo de
+# %LOCALAPPDATA%\SyncMaster\App sem mudar o caminho -- ja valem no proximo clique, sem
+# regerar atalho nenhum. So mover a copia de lugar exige rodar isto de novo.
+# Reaproveita Create-SyncMasterShortcut.ps1 da raiz, achado como em Start-SyncMaster.
+# Destinos e parametro para o teste nao precisar escrever na Area de Trabalho de verdade.
+function New-SyncMasterAtalho {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [string]$Nome = 'Sync Master',
+        [string[]]$Destinos = @(
+            [Environment]::GetFolderPath('Desktop')
+            [Environment]::GetFolderPath('Programs')
+        ),
+        [switch]$ComoAdministrador
+    )
+
+    $raiz = Split-Path $PSScriptRoot -Parent
+    $gerador = Join-Path $raiz 'Create-SyncMasterShortcut.ps1'
+    $launcher = Join-Path $raiz 'Sync_Master.ps1'
+    foreach ($arquivo in $gerador, $launcher) {
+        if (-not (Test-Path -LiteralPath $arquivo -PathType Leaf)) {
+            throw "Arquivo necessario ausente: $arquivo"
+        }
+    }
+
+    $criados = [System.Collections.Generic.List[string]]::new()
+    foreach ($destino in $Destinos) {
+        if ([string]::IsNullOrWhiteSpace($destino)) {
+            Write-Warning 'O Windows nao informou uma das pastas de atalho; ela foi ignorada.'
+            continue
+        }
+        if (-not $PSCmdlet.ShouldProcess($destino, "Criar o atalho '$Nome'")) { continue }
+        # Uma pasta indisponivel (perfil redirecionado, politica de grupo) nao pode
+        # levar a outra junto: a Area de Trabalho falhar nao e motivo para ficar sem
+        # o item no Menu Iniciar.
+        try {
+            # 6>$null e nao | Out-Null: o gerador informa por Write-Host, que nao passa
+            # pelo pipeline. Sem isso o relatorio dele sai duplicado antes do resumo daqui.
+            & $gerador -ShortcutName $Nome -ScriptPath $launcher -ShortcutDirectory $destino `
+                -RunAsAdmin:$ComoAdministrador 6>$null | Out-Null
+            $criados.Add((Join-Path $destino "$Nome.lnk"))
+        }
+        catch {
+            Write-Warning "Nao foi possivel criar o atalho em '$destino': $($_.Exception.Message)"
+        }
+    }
+
+    if ($criados.Count -gt 0) {
+        Registrar-Log "Atalhos do Sync Master criados: $($criados -join '; ')"
+    }
+    return @($criados)
+}
+
+# Cria os atalhos e relata o resultado. E o que o menu principal invoca: New-SyncMasterAtalho
+# devolve dado, esta aqui faz a UI e nao deixa o menu quebrar por causa de um atalho.
+function Criar-AtalhosSyncMaster {
+    Write-Host 'Criando o atalho na Area de Trabalho e no Menu Iniciar...' -ForegroundColor Cyan
+    try {
+        $criados = New-SyncMasterAtalho
+        if (@($criados).Count -eq 0) {
+            Write-Warning 'Nenhum atalho foi criado. Veja os avisos acima.'
+        }
+        else {
+            foreach ($atalho in $criados) { Write-Host "  OK: $atalho" -ForegroundColor Green }
+            Write-Host 'Procure por "Sync Master" no menu Iniciar.' -ForegroundColor Cyan
+            Write-Host 'O atalho aponta para esta copia: atualizar o Sync Master aqui ja vale no proximo clique.' -ForegroundColor DarkGray
+        }
+    }
+    catch {
+        Write-Warning "Falha ao criar os atalhos: $($_.Exception.Message)"
+    }
+    Pause-Script
+}
+
 # Garante que um diretorio exista (idempotente).
 function Ensure-Dir {
     param([string]$Path)
@@ -144,4 +221,4 @@ function Require-Admin {
     }
 }
 
-Export-ModuleMember -Function Get-SyncMasterDataDir, Start-SyncMaster, Start-SyncMasterLog, Stop-SyncMasterLog, Pause-Script, Confirm-Action, Registrar-Log, Visualizar-Logs, Ensure-Dir, Test-IsAdmin, Require-Admin
+Export-ModuleMember -Function Get-SyncMasterDataDir, Start-SyncMaster, Start-SyncMasterLog, Stop-SyncMasterLog, Pause-Script, Confirm-Action, Registrar-Log, Visualizar-Logs, Ensure-Dir, Test-IsAdmin, Require-Admin, New-SyncMasterAtalho, Criar-AtalhosSyncMaster
