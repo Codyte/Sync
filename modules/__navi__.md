@@ -4,8 +4,8 @@
 
 - **Arquivos.psm1** (507 ln)
   <sub>L24:Remove-ToRecycleBin  L38:Menu-GerenciamentoArquivos  L53:Encontrar-ArquivosDuplicados  L57:CONFIGURAÇÕES RÁPIDAS ===================  L243:Get-FastXxHash64  L259:Get-DuplicatesByHashLocal  L449:Verificar-IntegridadeArquivos  L473:Permissoes-Pasta</sub>
-- **Ativacao.psm1** (1404 ln)
-  <sub>L53:Get-WindowsDirectory  L62:Invoke-Slmgr  L130:Get-WpaSupportedWindows  L147:Get-WpaSample  L171:Get-WpaLicenseStatusText  L185:Get-WpaDiagnostic  L242:Measure-WpaGrowth  L273:Get-WpaHiveSize  L290:Get-WpaAclSample  L342:Test-WpaActivatorFootprint  L406:Test-WpaPsExec64File  L421:Find-WpaPsExec64  L442:Install-WpaPsExec64  L499:Invoke-WpaSystemProbe  L606:Invoke-WpaActivationRepair  L620:Invoke-WpaLicenseFileRepair  L632:Get-WpaActivationState  L653:Get-WpaLicenseDetail  L664:Invoke-WpaLicensingDiag  L685:Export-WpaReport  L712:Backup-WpaRegistry  L736:Repair-WpaServices  L775:Clear-WpaKmsConfig  L784:Reset-WpaTokens …</sub>
+- **Ativacao.psm1** (1579 ln)
+  <sub>L55:Get-WindowsDirectory  L64:Invoke-Slmgr  L132:Get-WpaSupportedWindows  L149:Get-WpaSample  L173:Get-WpaLicenseStatusText  L187:Get-WpaDiagnostic  L244:Measure-WpaGrowth  L275:Get-WpaHiveSize  L292:Get-WpaAclSample  L344:Test-WpaActivatorFootprint  L408:Test-WpaPsExec64File  L423:Find-WpaPsExec64  L444:Install-WpaPsExec64  L501:Invoke-WpaSystemProbe  L608:Invoke-WpaActivationRepair  L622:Invoke-WpaLicenseFileRepair  L634:Get-WpaActivationState  L655:Get-WpaLicenseDetail  L666:Invoke-WpaLicensingDiag  L687:Export-WpaReport  L714:Backup-WpaRegistry  L738:Repair-WpaServices  L777:Clear-WpaKmsConfig  L786:Reset-WpaTokens …</sub>
 - **Backup.psm1** (125 ln)
   <sub>L12:Get-ZipBackupPath  L29:Invoke-ZipBackup  L49:Invoke-ZipRestore  L76:Criar-BackupZIP  L92:Restaurar-BackupZIP</sub>
 - **Core.psm1** (224 ln)

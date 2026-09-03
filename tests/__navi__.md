@@ -14,4 +14,4 @@
 - **PowerShellUpdate.Tests.ps1** (169 ln)
 - **Rede.Tests.ps1** (64 ln)
 - **Sync.Tests.ps1** (364 ln)
-- **Wpa.Tests.ps1** (407 ln)
+- **Wpa.Tests.ps1** (527 ln)

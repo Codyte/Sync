@@ -402,6 +402,126 @@ Describe 'Invoke-WpaTriage' {
         $resultado.Avisos -join ' ' | Should -Match 'opcao 3'
     }
 }
+Describe 'Get-WpaReactivationRisk' {
+    BeforeEach {
+        $global:WpaTeste = @{ Canal = 'Windows(R) Operating System, OEM_DM channel'; Firmware = 'ABCDE-FGHIJ'; Admin = $true }
+        Mock -ModuleName Ativacao Get-WpaSupportedWindows { [PSCustomObject]@{ Caption = 'Windows 10 Pro' } }
+        Mock -ModuleName Ativacao Test-IsAdmin { [bool]$global:WpaTeste.Admin }
+        Mock -ModuleName Ativacao Get-WpaActivationState {
+            [PSCustomObject]@{ Licensed = $true; StatusCode = 1; StatusText = 'Licenciado' }
+        }
+        Mock -ModuleName Ativacao Get-CimInstance {
+            if ($ClassName -eq 'SoftwareLicensingService') {
+                return [PSCustomObject]@{ OA3xOriginalProductKey = [string]$global:WpaTeste.Firmware }
+            }
+            [PSCustomObject]@{ Description = [string]$global:WpaTeste.Canal; PartialProductKey = 'QV66P' }
+        }
+    }
+
+    # Chave no firmware volta sozinha pela UEFI: e o unico caso em que o reset
+    # offline passa sem ninguem precisar guardar chave nenhuma.
+    It 'chave OEM no firmware e risco baixo' {
+        $r = InModuleScope Ativacao { Get-WpaReactivationRisk }
+
+        $r.Risco | Should -Be 'Baixo'
+        $r.ChaveNoFirmware | Should -BeTrue
+    }
+
+    # O caso que o procedimento de origem nao avisa: o reset apaga o tokens.dat e
+    # o KMS precisa de um servidor respondendo para devolver a ativacao.
+    It 'volume por KMS e risco alto mesmo estando licenciado agora' {
+        $global:WpaTeste.Canal = 'Windows(R) Operating System, VOLUME_KMSCLIENT channel'
+        $global:WpaTeste.Firmware = ''
+
+        $r = InModuleScope Ativacao { Get-WpaReactivationRisk }
+
+        $r.Risco | Should -Be 'Alto'
+        $r.Motivo | Should -Match 'KMS'
+    }
+
+    It 'MAK e risco alto porque a chave nao esta no firmware' {
+        $global:WpaTeste.Canal = 'Windows(R) Operating System, VOLUME_MAK channel'
+        $global:WpaTeste.Firmware = ''
+
+        $r = InModuleScope Ativacao { Get-WpaReactivationRisk }
+
+        $r.Risco | Should -Be 'Alto'
+    }
+
+    It 'retail sem chave no firmware e risco medio, nao baixo' {
+        $global:WpaTeste.Canal = 'Windows(R) Operating System, RETAIL channel'
+        $global:WpaTeste.Firmware = ''
+
+        $r = InModuleScope Ativacao { Get-WpaReactivationRisk }
+
+        $r.Risco | Should -Be 'Medio'
+    }
+
+    # Sem elevacao a chave do firmware volta vazia, e e ela que decide o desfecho.
+    # Reportar 'Medio' aqui seria chutar com a cara de diagnostico.
+    It 'sem elevacao devolve Desconhecido em vez de chutar' {
+        $global:WpaTeste.Admin = $false
+        $global:WpaTeste.Firmware = ''
+
+        $r = InModuleScope Ativacao { Get-WpaReactivationRisk }
+
+        $r.Risco | Should -Be 'Desconhecido'
+        $r.ConsultaCompleta | Should -BeFalse
+        $r.Recomendacao | Should -Match 'administrador'
+    }
+}
+
+Describe 'Invoke-WpaOfflineResetGuide' {
+    BeforeEach {
+        Mock -ModuleName Ativacao Get-WpaSupportedWindows { [PSCustomObject]@{ Caption = 'Windows 10 Pro' } }
+        Mock -ModuleName Ativacao Write-Host { }
+        Mock -ModuleName Ativacao Write-Warning { }
+        Mock -ModuleName Ativacao Registrar-Log { }
+        Mock -ModuleName Ativacao Get-WpaHiveSize { [PSCustomObject]@{ MegaBytes = 480; Inchado = $true } }
+        Mock -ModuleName Ativacao Get-WpaSample { [PSCustomObject]@{ SubkeyCount = 220000 } }
+        Mock -ModuleName Ativacao Get-WpaReactivationRisk {
+            [PSCustomObject]@{ Risco = 'Baixo'; Canal = 'OEM_DM'; ChaveParcial = 'QV66P'
+                Motivo = 'firmware'; Recomendacao = 'ok'; ChaveNoFirmware = $true }
+        }
+        Mock -ModuleName Ativacao Export-WpaReport { 'C:\rel.txt' }
+        Mock -ModuleName Ativacao Confirm-Action { $true }
+        Mock -ModuleName Ativacao Start-Process { }
+        Mock -ModuleName Ativacao Get-WindowsDirectory { 'C:\Windows' }
+    }
+
+    # Sem -Reiniciar e material de leitura: nao pode desligar a maquina de ninguem.
+    It 'sem -Reiniciar nao reinicia nem pede confirmacao' {
+        InModuleScope Ativacao { Invoke-WpaOfflineResetGuide } | Out-Null
+
+        Should -Invoke -ModuleName Ativacao Start-Process -Times 0 -Exactly
+        Should -Invoke -ModuleName Ativacao Confirm-Action -Times 0 -Exactly
+    }
+
+    It 'recusar a confirmacao nao reinicia nem gera relatorio' {
+        Mock -ModuleName Ativacao Confirm-Action { $false }
+
+        InModuleScope Ativacao { Invoke-WpaOfflineResetGuide -Reiniciar } | Out-Null
+
+        Should -Invoke -ModuleName Ativacao Start-Process -Times 0 -Exactly
+        Should -Invoke -ModuleName Ativacao Export-WpaReport -Times 0 -Exactly
+    }
+
+    # Depois do reset nao da para reconstruir qual era o estado: o relatorio e o
+    # unico registro do antes, e tem que sair ANTES do reinicio.
+    It 'guarda o relatorio antes de reiniciar' {
+        InModuleScope Ativacao { Invoke-WpaOfflineResetGuide -Reiniciar } | Out-Null
+
+        Should -Invoke -ModuleName Ativacao Export-WpaReport -Times 1 -Exactly
+        Should -Invoke -ModuleName Ativacao Start-Process -Times 1 -Exactly
+    }
+
+    It 'um coletor que falha nao impede o guia de sair' {
+        Mock -ModuleName Ativacao Get-WpaHiveSize { throw 'Acesso negado' }
+        Mock -ModuleName Ativacao Get-WpaReactivationRisk { throw 'CIM fora do ar' }
+
+        { InModuleScope Ativacao { Invoke-WpaOfflineResetGuide } } | Should -Not -Throw
+    }
+}
 AfterAll {
     Remove-Variable -Name WpaTeste -Scope Global -ErrorAction SilentlyContinue
 }

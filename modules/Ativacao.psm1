@@ -1,41 +1,43 @@
 # ====================== BEGIN NAV INDEX ======================
 # NAV INDEX — auto-generated symbol map (refresh via the navindex skill)
-#   L53    Get-WindowsDirectory
-#   L62    Invoke-Slmgr
-#   L130   Get-WpaSupportedWindows
-#   L147   Get-WpaSample
-#   L171   Get-WpaLicenseStatusText
-#   L185   Get-WpaDiagnostic
-#   L242   Measure-WpaGrowth
-#   L273   Get-WpaHiveSize
-#   L290   Get-WpaAclSample
-#   L342   Test-WpaActivatorFootprint
-#   L406   Test-WpaPsExec64File
-#   L421   Find-WpaPsExec64
-#   L442   Install-WpaPsExec64
-#   L499   Invoke-WpaSystemProbe
-#   L606   Invoke-WpaActivationRepair
-#   L620   Invoke-WpaLicenseFileRepair
-#   L632   Get-WpaActivationState
-#   L653   Get-WpaLicenseDetail
-#   L664   Invoke-WpaLicensingDiag
-#   L685   Export-WpaReport
-#   L712   Backup-WpaRegistry
-#   L736   Repair-WpaServices
-#   L775   Clear-WpaKmsConfig
-#   L784   Reset-WpaTokens
-#   L831   Repair-WpaSystemFiles
-#   L854   Uninstall-WpaProductKey
-#   L864   Invoke-WpaRearm
-#   L873   Invoke-WpaPhoneActivation
-#   L900   Invoke-WpaGuidedRepair
-#   L950   Invoke-WpaTriage
-#   L1062  Menu-GerenciamentoWpa
-#   L1286  Menu-Ativacao
-#   L1305  Mostrar-StatusAtivacao
-#   L1314  Instalar-ChaveProduto
-#   L1340  Ati
-#   L1394  Ativar-Windows
+#   L55    Get-WindowsDirectory
+#   L64    Invoke-Slmgr
+#   L132   Get-WpaSupportedWindows
+#   L149   Get-WpaSample
+#   L173   Get-WpaLicenseStatusText
+#   L187   Get-WpaDiagnostic
+#   L244   Measure-WpaGrowth
+#   L275   Get-WpaHiveSize
+#   L292   Get-WpaAclSample
+#   L344   Test-WpaActivatorFootprint
+#   L408   Test-WpaPsExec64File
+#   L423   Find-WpaPsExec64
+#   L444   Install-WpaPsExec64
+#   L501   Invoke-WpaSystemProbe
+#   L608   Invoke-WpaActivationRepair
+#   L622   Invoke-WpaLicenseFileRepair
+#   L634   Get-WpaActivationState
+#   L655   Get-WpaLicenseDetail
+#   L666   Invoke-WpaLicensingDiag
+#   L687   Export-WpaReport
+#   L714   Backup-WpaRegistry
+#   L738   Repair-WpaServices
+#   L777   Clear-WpaKmsConfig
+#   L786   Reset-WpaTokens
+#   L833   Repair-WpaSystemFiles
+#   L856   Uninstall-WpaProductKey
+#   L866   Invoke-WpaRearm
+#   L875   Invoke-WpaPhoneActivation
+#   L902   Invoke-WpaGuidedRepair
+#   L952   Get-WpaReactivationRisk
+#   L1019  Invoke-WpaOfflineResetGuide
+#   L1115  Invoke-WpaTriage
+#   L1227  Menu-GerenciamentoWpa
+#   L1461  Menu-Ativacao
+#   L1480  Mostrar-StatusAtivacao
+#   L1489  Instalar-ChaveProduto
+#   L1515  Ati
+#   L1569  Ativar-Windows
 # ======================= END NAV INDEX =======================
 
 <#
@@ -947,6 +949,169 @@ function Invoke-WpaGuidedRepair {
     Registrar-Log 'Reparo guiado terminou sem ativacao'
 }
 
+function Get-WpaReactivationRisk {
+    <#
+      O reset offline zera o tokens.dat e o armazenamento SPP inteiro, e nao
+      reativa nada depois. Entao a pergunta que decide se vale correr o risco nao
+      e 'a arvore esta inchada?', e 'esta maquina reativa sozinha depois?'.
+      Chave no firmware reativa sem intervencao; volume por KMS depende do
+      servidor responder; chave avulsa depende de alguem ter guardado a chave.
+      O procedimento de origem nao faz essa pergunta -- e ela que separa
+      'reiniciou e nem percebeu' de 'ficou sem Windows ativado e sem chave'.
+    #>
+    $null = Get-WpaSupportedWindows
+
+    $oemKey = $null
+    $elevado = Test-IsAdmin
+    try {
+        $oemKey = [string](Get-CimInstance -ClassName SoftwareLicensingService -ErrorAction Stop).OA3xOriginalProductKey
+    }
+    catch { Write-Verbose "SoftwareLicensingService indisponivel: $($_.Exception.Message)" }
+
+    $produto = Get-CimInstance -ClassName SoftwareLicensingProduct `
+        -Filter "PartialProductKey IS NOT NULL AND Name LIKE 'Windows%'" -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    $canal = [string]$produto.Description
+    $estado = Get-WpaActivationState
+    $temFirmware = -not [string]::IsNullOrWhiteSpace($oemKey)
+
+    # Sem elevacao a chave do firmware volta vazia, e e exatamente ela que decide
+    # o desfecho. Um 'risco baixo' obtido assim seria chute, nao diagnostico.
+    if (-not $elevado) {
+        $risco = 'Desconhecido'
+        $motivo = 'Sem elevacao a chave OEM do firmware nao e legivel, e e ela que decide se a maquina reativa sozinha.'
+        $recomendacao = 'Reabra o Sync Master como administrador e consulte de novo ANTES de decidir.'
+    }
+    elseif ($canal -match 'KMSCLIENT') {
+        $risco = 'Alto'
+        $motivo = 'Licenca de volume por KMS: a ativacao depende de um servidor KMS responder na rede.'
+        $recomendacao = 'Confirme que o KMS da empresa responde, ou tenha uma chave MAK em maos, antes de reiniciar.'
+    }
+    elseif ($canal -match 'MAK') {
+        $risco = 'Alto'
+        $motivo = 'Licenca de volume MAK: a chave nao fica no firmware e nao volta sozinha.'
+        $recomendacao = 'Tenha a chave MAK em maos. Sem ela a maquina fica sem ativacao apos o reset.'
+    }
+    elseif ($temFirmware) {
+        $risco = 'Baixo'
+        $motivo = 'Ha chave OEM gravada no firmware: apos o reset o Windows le a chave da UEFI e reativa sem intervencao.'
+        $recomendacao = 'Pode prosseguir. Ainda assim guarde o relatorio antes, para comparar depois.'
+    }
+    else {
+        $risco = 'Medio'
+        $motivo = 'Sem chave no firmware. Licenca digital costuma reativar online sozinha, mas chave avulsa digitada precisa ser digitada de novo.'
+        $recomendacao = 'Confirme a licenca digital vinculada a conta Microsoft, ou guarde a chave, antes de reiniciar.'
+    }
+
+    [PSCustomObject]@{
+        Risco             = $risco
+        Motivo            = $motivo
+        Recomendacao      = $recomendacao
+        Canal             = $canal
+        ChaveNoFirmware   = $temFirmware
+        ChaveParcial      = [string]$produto.PartialProductKey
+        Licenciado        = $estado.Licensed
+        EstadoAtual       = $estado.StatusText
+        ConsultaCompleta  = $elevado
+    }
+}
+
+function Invoke-WpaOfflineResetGuide {
+    <#
+      Guia do reset offline do licenciamento (procedimento da massgrave.dev, que
+      usa o rearm.cmd do projeto asdcorp/rearm). O Sync Master NAO apaga a arvore
+      e NAO baixa o script: a chave WPA e protegida pelo kernel e so cede com o
+      hive descarregado, fora do Windows, o que nenhuma funcao daqui alcanca.
+      O que da para fazer daqui e o que o procedimento de origem nao faz: medir o
+      estado antes, guardar evidencia, e dizer se esta maquina reativa sozinha
+      depois. Reiniciar para o WinRE fica atras de confirmacao explicita.
+    #>
+    [CmdletBinding()]
+    param([switch]$Reiniciar)
+
+    $null = Get-WpaSupportedWindows
+
+    Write-Host ''
+    Write-Host '--- RESET OFFLINE DO LICENCIAMENTO (roda FORA do Windows) ---' -ForegroundColor Cyan
+
+    try {
+        $hive = Get-WpaHiveSize
+        Write-Host ("Hive SYSTEM agora: {0} MB{1}" -f $hive.MegaBytes,
+            $(if ($hive.Inchado) { ' (inchado)' } else { ' (dentro do normal)' })) -ForegroundColor Cyan
+    }
+    catch { Write-Warning "Tamanho do hive indisponivel: $($_.Exception.Message)" }
+
+    try {
+        $amostra = Get-WpaSample
+        Write-Host "Subchaves em HKLM\SYSTEM\WPA: $($amostra.SubkeyCount)" -ForegroundColor Cyan
+    }
+    catch { Write-Warning "Contagem de subchaves indisponivel: $($_.Exception.Message)" }
+
+    Write-Host ''
+    Write-Host 'O que o rearm.cmd apaga (bem mais que as subchaves WPA):' -ForegroundColor Yellow
+    foreach ($item in @(
+            'chaves WPA da familia 8DEC0AF1-0341-4b93-85CD-72606C2DF94C',
+            'tokens.dat do ClipSVC, do OSPPSVC e das pastas de licenciamento legadas',
+            'data.dat e os caches de spp\store',
+            'ClipSVC\Parameters\SubscriptionList (assinaturas e apps da Store)',
+            'valores do SoftwareProtectionPlatform (ServiceSessionId, LicStatusArray, PolicyValuesArray, actionlist)',
+            'caches de licenciamento do Office -- o Office tambem sai desativado',
+            'entradas IdentityCRL em tres perfis')) {
+        Write-Host "  - $item"
+    }
+    Write-Host 'Ele NAO reativa nada depois. A reativacao e por sua conta.' -ForegroundColor Yellow
+
+    Write-Host ''
+    $risco = $null
+    try {
+        $risco = Get-WpaReactivationRisk
+        $cor = switch ($risco.Risco) { 'Baixo' { 'Green' } 'Medio' { 'Yellow' } default { 'Red' } }
+        Write-Host "RISCO DE NAO REATIVAR: $($risco.Risco)" -ForegroundColor $cor
+        Write-Host "  Canal:        $($risco.Canal)"
+        Write-Host "  Chave parcial: $($risco.ChaveParcial)  (anote antes de prosseguir)"
+        Write-Host "  Motivo:       $($risco.Motivo)"
+        Write-Host "  Recomendacao: $($risco.Recomendacao)" -ForegroundColor Cyan
+    }
+    catch { Write-Warning "Nao foi possivel avaliar o risco de reativacao: $($_.Exception.Message)" }
+
+    Write-Host ''
+    Write-Host 'Procedimento (fonte: https://massgrave.dev/fix-wpa-registry):' -ForegroundColor Cyan
+    foreach ($passo in @(
+            '1. Baixe https://github.com/asdcorp/rearm/archive/refs/heads/principalis.zip e extraia.',
+            '2. Copie rearm.cmd para a raiz do disco C: (C:\rearm.cmd).',
+            '3. Reinicie para o ambiente de recuperacao: shutdown /f /r /o /t 0',
+            '4. Solucao de Problemas > Opcoes Avancadas > Prompt de Comando.',
+            '5. Rode C:\rearm.cmd  (se disser que nao reconhece, descubra a letra com:',
+            '   bcdedit | find "osdevice"  e use a letra que aparecer, ex.: E:\rearm.cmd)',
+            '6. Espere terminar, saia e inicie o Windows normalmente.',
+            '7. Volte aqui e rode a triagem (opcao 0) para comparar hive e contagem.')) {
+        Write-Host "  $passo"
+    }
+    Write-Host ''
+    Write-Host 'O Sync Master nao baixa nem executa o rearm.cmd: a aquisicao e a execucao sao suas.' -ForegroundColor DarkGray
+
+    if (-not $Reiniciar) { return $risco }
+
+    if ($risco -and $risco.Risco -in 'Alto','Desconhecido') {
+        Write-Warning "Risco $($risco.Risco): $($risco.Recomendacao)"
+    }
+    Write-Warning 'Reiniciar agora fecha os programas abertos a forca e descarta o que nao estiver salvo.'
+    if (-not (Confirm-Action 'Guardar o relatorio e reiniciar AGORA para o ambiente de recuperacao?')) {
+        Write-Host 'Cancelado. Nada foi alterado.' -ForegroundColor DarkGray
+        return $risco
+    }
+
+    # Evidencia antes de um caminho sem volta: depois do reset nao da para
+    # reconstruir qual era o estado, e o relatorio e o unico registro do antes.
+    try { Write-Host "Relatorio salvo em: $(Export-WpaReport)" -ForegroundColor Green }
+    catch { Write-Warning "Nao foi possivel salvar o relatorio: $($_.Exception.Message)" }
+
+    Registrar-Log 'Reinicio para o ambiente de recuperacao solicitado (reset offline do licenciamento)'
+    Start-Process -FilePath (Join-Path (Get-WindowsDirectory) 'System32\shutdown.exe') `
+        -ArgumentList '/f','/r','/o','/t','0' -Wait -NoNewWindow -ErrorAction Stop
+    return $risco
+}
+
 function Invoke-WpaTriage {
     <#
       Orquestrador da triagem. Chama os coletores que ja existem na ordem do mais
@@ -1090,6 +1255,7 @@ function Menu-GerenciamentoWpa {
         Write-Host '15 - Rearm do licenciamento (/rearm; limitado, exige reiniciar)'
         Write-Host '16 - Reparo guiado escalonado (para quando ativar)' -ForegroundColor Yellow
         Write-Host '17 - Ativacao por telefone (/dti + /atp), quando a internet nao passa'
+        Write-Host '18 - Reset offline do licenciamento: guia + risco de nao reativar' -ForegroundColor Yellow
         Write-Host 'A  - Abrir a pagina de Ativacao do Windows'
         Write-Host 'Q  - Voltar'
         Write-Warning 'A quantidade isolada de subchaves nao define saude. O Sync Master nunca apaga HKLM\SYSTEM\WPA.'
@@ -1264,6 +1430,15 @@ function Menu-GerenciamentoWpa {
                     Write-Warning 'Use quando /ato nao passa por rede. Voce vai precisar ligar para a central da Microsoft.'
                     if (Confirm-Action 'Iniciar a ativacao por telefone (/dti + /atp)?') {
                         Invoke-WpaPhoneActivation
+                    }
+                    Pause-Script
+                }
+                '18' {
+                    Write-Warning 'Este caminho roda FORA do Windows e apaga o armazenamento de licenca (Windows e Office). Nao ha rollback.'
+                    $guia = Invoke-WpaOfflineResetGuide
+                    if ($guia -and $guia.Risco -eq 'Baixo' -and
+                        (Confirm-Action 'Reiniciar agora para o ambiente de recuperacao?')) {
+                        Invoke-WpaOfflineResetGuide -Reiniciar | Out-Null
                     }
                     Pause-Script
                 }
