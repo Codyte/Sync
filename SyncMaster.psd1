@@ -26,7 +26,8 @@
         'modules\Hardware.psm1',
         'modules\Rede.psm1',
         'modules\Ativacao.psm1',
-        'modules\PowerShellUpdate.psm1'
+        'modules\PowerShellUpdate.psm1',
+        'modules\Ferramentas.psm1'
     )
 
     FunctionsToExport = @(
@@ -61,7 +62,9 @@
         'Menu-Ativacao','Mostrar-StatusAtivacao','Instalar-ChaveProduto','Ativar-Windows',
         # PowerShellUpdate
         'Get-LatestPowerShellVersion','Start-PowerShellInstallation','Get-InstallerInfo','Invoke-WingetInstall',
-        'Find-PwshPath','Install-PowerShell7','Menu-AtualizacaoPowerShell'
+        'Find-PwshPath','Install-PowerShell7','Menu-AtualizacaoPowerShell',
+        # Ferramentas (instalacao via winget)
+        'Get-CatalogoFerramentas','Show-CatalogoFerramentas','Install-Ferramenta','Menu-InstalarFerramentas'
     )
 
     AliasesToExport = @('Clear-Temp','Restore-PontoRestauracao')
